@@ -4,6 +4,7 @@ import sys
 import collections
 import os
 import fnmatch
+import pickle
 # adapting http://stackoverflow.com/questions/1912434/how-do-i-parse-xml-in-python (ElemlentTree)
 
 # Constants
