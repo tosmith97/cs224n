@@ -11,11 +11,13 @@ kWindowSize = 4
 
 def main():
     '''
-    Invocation: python process_xml.py <filename>
+    Invocation: python process_xml.py <dirname>
     '''
-    #assert(len(argv) == 2)
-    #filename = sys.argv[-1]
-    pass
+    assert(len(argv) == 2)
+    dirname = sys.argv[-1]
+    with open('training_data.p', 'w') as f:
+        all_data = parse_directory(dirname)
+        pickle.dump(all_data, f)
 
 def parse_directory(dirname):
     '''
