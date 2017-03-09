@@ -15,7 +15,6 @@ def main():
     '''
     Invocation: python process_xml.py <dirname>
     '''
-    assert(len(argv) == 2)
     dirname = sys.argv[-1]
     with open('training_data.p', 'wb') as f:
         #all_data = parse_directory(dirname)
