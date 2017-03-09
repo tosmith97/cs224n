@@ -5,6 +5,7 @@ import collections
 import os
 import fnmatch
 import pickle
+
 # adapting http://stackoverflow.com/questions/1912434/how-do-i-parse-xml-in-python (ElemlentTree)
 
 # Constants
@@ -16,9 +17,10 @@ def main():
     '''
     assert(len(argv) == 2)
     dirname = sys.argv[-1]
-    with open('training_data.p', 'w') as f:
-        all_data = parse_directory(dirname)
-        pickle.dump(all_data, f)
+    with open('training_data.p', 'wb') as f:
+        #all_data = parse_directory(dirname)
+        full_string = get_dir_string(dirname)
+        pickle.dump(full_string, f)
 
 def parse_directory(dirname):
     '''
@@ -37,6 +39,17 @@ def parse_file(filename):
     root = xml.etree.ElementTree.parse(filename).getroot()
     return create_skipgram(get_word_sequence(root), kWindowSize)
 
+def get_file_string(filename):
+    root = xml.etree.ElementTree.parse(filename).getroot()
+    return ' '.join(get_word_sequence(root))
+
+def get_dir_string(dirname):
+    full_string = ''
+    for dirpath, dirs, files in os.walk(dirname):
+        for filename in fnmatch.filter(files, '*.xml'):
+            full_string += get_file_string(os.path.join(dirpath, filename)) + ' '
+    return full_string
+
 def get_sense_name(element):
     suffix = element.get('sense')
     if suffix is None:
@@ -45,6 +58,7 @@ def get_sense_name(element):
 
 def get_word_sequence(root):
     return [get_sense_name(word) for word in root]
+
 
 def create_skipgram(word_sequence, window_size):
     '''
