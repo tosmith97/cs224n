@@ -52,6 +52,7 @@ def create_skipgram(word_sequence, window_size):
     [(<center-word>, <context-word>), ...]
     consider splitting on sentences
     '''
+    word_sequence = [word for word in word_sequence if word is not '/']
     length = len(word_sequence)
     center_context_pairs = []
     for i in range(length):

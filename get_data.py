@@ -50,11 +50,13 @@ def build_dataset(words):
   count.extend(collections.Counter(words).most_common(vocabulary_size - 1))
   dictionary = dict()
   for word, _ in count:
+    # word along with 'ranking' in terms of popularity
     dictionary[word] = len(dictionary)
   data = list()
   unk_count = 0
   for word in words:
     if word in dictionary:
+      # 'rank'
       index = dictionary[word]
     else:
       index = 0  # dictionary['UNK']
