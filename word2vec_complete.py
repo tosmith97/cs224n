@@ -29,7 +29,7 @@ Our dataset now becomes:
 
 # Let's define some constants first
 batch_size = 128
-vocabulary_size = 50000
+vocabulary_size = 100000
 embedding_size = 128  # Dimension of the embedding vector.
 num_sampled = 64    # Number of negative examples to sample.
 
@@ -111,7 +111,10 @@ def run():
                     print_closest_words(val_data[i], nearest, reverse_dictionary)
   
         final_embeddings = normalized_embeddings.eval()
+        save_path = saver.save(session, "/results/model.ckpt")
         return final_embeddings
+
+saver = tf.train.Saver()
 
 # Let's start training
 final_embeddings = run()

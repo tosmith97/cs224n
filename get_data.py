@@ -33,13 +33,13 @@ def maybe_download(filename, expected_bytes):
 filename = maybe_download('text8.zip', 31344016)
 
 # Read the data into a list of strings.
-def read_data(filename):
+def read_data():
   """Extract the first file enclosed in a zip file as a list of words"""
-  with zipfile.ZipFile(filename) as f:
-    data = tf.compat.as_str(f.read(f.namelist()[0])).split()
+  with open('training_data.p', 'rb') as f:
+    data = pickle.load(f)
   return data
 
-words = read_data(filename)
+words = read_data()
 print('Data size', len(words))
 
 # Step 2: Build the dictionary and replace rare words with UNK token.
