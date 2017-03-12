@@ -35,14 +35,26 @@ def parse_directory(dirname):
     
 
 def parse_file(filename):
+    '''
+    Return skip prcoessing from given
+    xml file
+    '''
     root = xml.etree.ElementTree.parse(filename).getroot()
     return create_skipgram(get_word_sequence(root), kWindowSize)
 
 def get_file_string(filename):
+    '''
+    Convert xml file to a single string,
+    gluing together contractions (w/ apostrophes)
+    '''
     root = xml.etree.ElementTree.parse(filename).getroot()
     return ' '.join(get_word_sequence(root))
 
 def get_dir_string(dirname):
+    '''
+    Recursively iterate through directories and compile
+    all the file strings into one string
+    '''
     full_string = ''
     for dirpath, dirs, files in os.walk(dirname):
         for filename in fnmatch.filter(files, '*.xml'):
@@ -50,13 +62,40 @@ def get_dir_string(dirname):
     return full_string
 
 def get_sense_name(element):
+    '''
+    tag a token with its sense
+    '''
     suffix = element.get('sense')
     if suffix is None:
         suffix = ''
     return element.get('text') + suffix
 
+def is_apostrophe_chunk(token):
+    return len(token) > 0 and token[0] == '\''
+
 def get_word_sequence(root):
-    return [get_sense_name(word) for word in root]
+    '''
+    Iterate through xml root 
+    and compile everything into
+    a list of strings. Handle apostrophes
+    by gluing together to form 
+    contractions.
+    '''
+    seq = [get_sense_name(word) for word in root]
+    fixed_seq = []
+    for i in xrange(len(seq) - 1):
+        if is_apostrophe_chunk(seq[i]):
+            continue
+        to_append = seq[i]
+        if is_apostrophe_chunk(seq[i+1]):
+            to_append += seq[i+1]
+        fixed_seq.append(to_append)
+    if not is_apostrophe_chunk(seq[-1]) and len(seq[-1]) > 0:
+        fixed_seq.append(seq[-1])
+    return fixed_seq
+
+        
+
 
 
 def create_skipgram(word_sequence, window_size):
