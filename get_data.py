@@ -36,7 +36,7 @@ filename = maybe_download('text8.zip', 31344016)
 def read_data():
   """Extract the first file enclosed in a zip file as a list of words"""
   with open('training_data.p', 'rb') as f:
-    data = pickle.load(f)
+    data = pickle.load(f).split()
   return data
 
 words = read_data()
@@ -107,7 +107,7 @@ valid_window = 100  # Only pick dev samples in the head of the distribution.
 valid_examples = np.random.choice(valid_window, valid_size, replace=False)
 
 # Step 5: Begin training.
-num_steps = 30000
+num_steps = 100000
 training_data = []
 for step in tqdm(range(num_steps)):
   batch_inputs, batch_labels = generate_batch(batch_size, num_skips, skip_window)
