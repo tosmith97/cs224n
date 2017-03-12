@@ -29,7 +29,7 @@ Our dataset now becomes:
 
 # Let's define some constants first
 batch_size = 128
-vocabulary_size = 50000
+vocabulary_size = 40000
 embedding_size = 128  # Dimension of the embedding vector.
 num_sampled = 64    # Number of negative examples to sample.
 
@@ -84,6 +84,9 @@ def run():
     # load model
     batch_inputs, batch_labels, normalized_embeddings, similarity, loss = skipgram()
     optimizer = tf.train.GradientDescentOptimizer(1.0).minimize(loss)
+    
+    # save model 
+    saver = tf.train.Saver()
 
     init = tf.global_variables_initializer()
     with tf.Session() as session:
@@ -109,8 +112,9 @@ def run():
                     top_k = 8  # number of nearest neighbors                       
                     nearest = (-sim[i, :]).argsort()[1:top_k + 1] 
                     print_closest_words(val_data[i], nearest, reverse_dictionary)
-  
+                  
         final_embeddings = normalized_embeddings.eval()
+        save_path = saver.save(session, "word_vec_model")
         return final_embeddings
 
 # Let's start training

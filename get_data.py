@@ -33,13 +33,13 @@ def maybe_download(filename, expected_bytes):
 filename = maybe_download('text8.zip', 31344016)
 
 # Read the data into a list of strings.
-def read_data(filename):
+def read_data():
   """Extract the first file enclosed in a zip file as a list of words"""
-  with zipfile.ZipFile(filename) as f:
-    data = tf.compat.as_str(f.read(f.namelist()[0])).split()
+  with open('training_data.p', 'rb') as f:
+    data = pickle.load(f).split()
   return data
 
-words = read_data(filename)
+words = read_data()
 print('Data size', len(words))
 
 # Step 2: Build the dictionary and replace rare words with UNK token.
@@ -50,11 +50,13 @@ def build_dataset(words):
   count.extend(collections.Counter(words).most_common(vocabulary_size - 1))
   dictionary = dict()
   for word, _ in count:
+    # word along with 'ranking' in terms of popularity
     dictionary[word] = len(dictionary)
   data = list()
   unk_count = 0
   for word in words:
     if word in dictionary:
+      # 'rank'
       index = dictionary[word]
     else:
       index = 0  # dictionary['UNK']
@@ -105,7 +107,7 @@ valid_window = 100  # Only pick dev samples in the head of the distribution.
 valid_examples = np.random.choice(valid_window, valid_size, replace=False)
 
 # Step 5: Begin training.
-num_steps = 30000
+num_steps = 100000
 training_data = []
 for step in tqdm(range(num_steps)):
   batch_inputs, batch_labels = generate_batch(batch_size, num_skips, skip_window)
