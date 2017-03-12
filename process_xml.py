@@ -20,7 +20,7 @@ def main():
     with open('training_data.p', 'wb') as f:
         #all_data = parse_directory(dirname)
         full_string = re.sub(ur"[^\w\d'\s]+",'', get_dir_string(dirname))
-        full_string = ' '.join([w for w in full_string.split() if len(w)>1 or w == 'I' or w == 'a'])
+        full_string = ' '.join([w for w in full_string.split() if len(w)>1 or w == 'I' or w == 'a']).lower()
         pickle.dump(full_string, f)
 
 def parse_directory(dirname):
