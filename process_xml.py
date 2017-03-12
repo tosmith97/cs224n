@@ -5,6 +5,7 @@ import collections
 import os
 import fnmatch
 import pickle
+import string
 
 # adapting http://stackoverflow.com/questions/1912434/how-do-i-parse-xml-in-python (ElemlentTree)
 
@@ -18,7 +19,8 @@ def main():
     dirname = sys.argv[-1]
     with open('training_data.p', 'wb') as f:
         #all_data = parse_directory(dirname)
-        full_string = get_dir_string(dirname)
+        full_string = get_dir_string(dirname).translate(None, string.punctuation)
+        full_string = ' '.join([w for w in full_string.split() if len(w)>1 or w == 'I' or w == 'a'])
         pickle.dump(full_string, f)
 
 def parse_directory(dirname):
@@ -70,6 +72,7 @@ def get_sense_name(element):
         suffix = ''
     return element.get('text') + suffix
 
+
 def is_apostrophe_chunk(token):
     return len(token) > 0 and token[0] == '\''
 
@@ -93,9 +96,6 @@ def get_word_sequence(root):
     if not is_apostrophe_chunk(seq[-1]) and len(seq[-1]) > 0:
         fixed_seq.append(seq[-1])
     return fixed_seq
-
-        
-
 
 
 def create_skipgram(word_sequence, window_size):
