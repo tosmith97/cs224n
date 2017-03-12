@@ -84,11 +84,9 @@ def run():
     # load model
     batch_inputs, batch_labels, normalized_embeddings, similarity, loss = skipgram()
     optimizer = tf.train.GradientDescentOptimizer(1.0).minimize(loss)
-    
-    # save model 
-    saver = tf.train.Saver()
 
     init = tf.global_variables_initializer()
+
     with tf.Session() as session:
         session.run(init)
 
@@ -114,11 +112,13 @@ def run():
                     print_closest_words(val_data[i], nearest, reverse_dictionary)
                   
         final_embeddings = normalized_embeddings.eval()
-        save_path = saver.save(session, "word_vec_model")
         return final_embeddings
 
 # Let's start training
 final_embeddings = run()
+
+# save word vecs
+np.savetxt('models/word_vectors.txt', final_embeddings)
 
 # Visualize the embeddings.
 visualize_embeddings(final_embeddings, reverse_dictionary)
