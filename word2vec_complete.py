@@ -12,6 +12,8 @@ import tensorflow as tf
 
 from utils import *
 
+from defs import EMBED_SIZE, VOCAB_SIZE
+
 '''
 Consider the following sentence:
 "the first cs224n homework was a lot of fun"
@@ -29,8 +31,8 @@ Our dataset now becomes:
 
 # Let's define some constants first
 batch_size = 128
-vocabulary_size = 40000
-embedding_size = 128  # Dimension of the embedding vector.
+vocabulary_size = VOCAB_SIZE
+embedding_size = EMBED_SIZE  # Dimension of the embedding vector.
 num_sampled = 64    # Number of negative examples to sample.
 
 '''
@@ -118,7 +120,13 @@ def run():
 final_embeddings = run()
 
 # save word vecs
-np.savetxt('models/word_vectors.txt', final_embeddings)
+np.savetxt('data/word_vectors.txt', final_embeddings)
+
+# save vocab
+vocab_list = reverse_dictionary.values()
+with open('data/vocab.txt', 'w') as f:
+    for v in vocab_list:
+        f.write("%s\n" % v)
 
 # Visualize the embeddings.
 visualize_embeddings(final_embeddings, reverse_dictionary)

@@ -13,6 +13,39 @@ import tensorflow as tf
 import collections
 import itertools
 
+from defs import EMBED_SIZE, VOCAB_SIZE
+
+def load_word_vector_mapping(vocab_file, vector_fstream):
+    """
+    Load word vector mapping using @vocab_fstream, @vector_fstream.
+    Assumes each line of the vocab file matches with those of the vector
+    file.
+    Adopted from assignment 3
+    """
+    ret = OrderedDict()
+    for vocab, vector in zip(vocab_fstream, vector_fstream):
+        vocab = vocab.strip()
+        vector = vector.strip()
+        ret[vocab] = array(list(map(float, vector.split())))
+    return ret
+
+
+def load_embeddings(vocab_file, wordvec_file, string_to_index):
+    """
+    Load word vector embeddings
+    Adopted from assignment 3
+    """
+    embeddings = np.array(np.random.randn(VOCAB_SIZE, EMBED_SIZE), dtype=np.float32)
+    embeddings[0] = 0.0
+    for word, vec in load_word_vector_mapping(vocab_file, wordvec_file).items():
+        # Do we want to normalize words/numbers? 
+        # word = normalize(word)
+
+        # see if word is in vocab; it will because of how we structured our stuff
+        embeddings[string_to_index[word]] = vec
+    print("Initialized embeddings.")
+    return embeddings
+
 
 def generate_dicts(reverse_dictionary):
     '''
@@ -44,10 +77,3 @@ def predict_sense(window, string_to_index, possible_senses, embeddings):
     '''
     possibilities = [p for p in itertools.product(*[possible_senses[word] for word in window])]
     return max(possibilities, key=lambda x: occurence_prob(x))
-
-
-
-
-
-
-
