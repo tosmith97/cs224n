@@ -67,7 +67,14 @@ def occurence_prob(window, string_to_index, embeddings):
     Given a window (as a tuple) of sense labeled words
     compute the probability of them occuring together
     '''
-    return 0.0 # TODO: compute this
+    windowsz = len(window)
+    context = range(0, windowsz/2) + range(windowsz/2 + 2, windowsz)
+    center_idx = string_to_index[window[windowsz/2 + 1]]
+    probs = tf.log(tf.nn.softmax(embeddings[center_idx], embeddings))
+    s = 0
+    for i in context:
+        s += probs[i]
+    return s
 
 def predict_sense(window, string_to_index, possible_senses, embeddings):
     '''
