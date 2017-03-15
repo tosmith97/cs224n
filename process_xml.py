@@ -1,13 +1,16 @@
-
 import xml.etree.ElementTree
 import sys
 import collections
 import os
 import fnmatch
+<<<<<<< Updated upstream
 import pickle
 import re
+=======
+import cPickle as pickle
+>>>>>>> Stashed changes
 
-# adapting http://stackoverflow.com/questions/1912434/how-do-i-parse-xml-in-python (ElemlentTree)
+# adapting http://stackoverflow.com/questions/1912434/how-do-i-parse-xml-in-python (ElementTree)
 
 # Constants
 kWindowSize = 4
