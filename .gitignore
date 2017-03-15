@@ -2,3 +2,4 @@ text8.zip
 data/
 .vscode/
 *.pyc
+.DS_Store
