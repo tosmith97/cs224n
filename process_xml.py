@@ -3,12 +3,7 @@ import sys
 import collections
 import os
 import fnmatch
-<<<<<<< Updated upstream
-import pickle
-import re
-=======
 import cPickle as pickle
->>>>>>> Stashed changes
 
 # adapting http://stackoverflow.com/questions/1912434/how-do-i-parse-xml-in-python (ElementTree)
 
@@ -21,10 +16,7 @@ def main():
     '''
     dirname = sys.argv[-1]
     with open('training_data.p', 'wb') as f:
-        # chars = [',', '.', '-', '--', '*']
         full_string = get_dir_string(dirname)
-        # full_string = re.sub(ur"[^\w\d'\s]+",'', get_dir_string(dirname))
-        # full_string = ' '.join([w for w in full_string.split() if len(w)>1 or w == 'I' or w == 'a' or w == 'i' or w == 'A']).lower()
         pickle.dump(full_string, f)
 
 def parse_directory(dirname):
