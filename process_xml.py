@@ -18,9 +18,9 @@ def main():
     '''
     dirname = sys.argv[-1]
     with open('training_data.p', 'wb') as f:
-        #all_data = parse_directory(dirname)
-        full_string = re.sub(ur"[^\w\d'\s]+",'', get_dir_string(dirname))
-        full_string = ' '.join([w for w in full_string.split() if len(w)>1 or w == 'I' or w == 'a']).lower()
+        chars = [',', '.', '-', '--', '*']
+        full_string = get_dir_string(dirname).translate(None, ''.join(chars))
+        full_string = ' '.join([w for w in full_string.split() if len(w)>1 or w == 'I' or w == 'a' or w == 'i' or w == 'A']).lower()
         pickle.dump(full_string, f)
 
 def parse_directory(dirname):

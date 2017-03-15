@@ -14,6 +14,8 @@ from six.moves import urllib
 from six.moves import xrange  # pylint: disable=redefined-builtin
 from tqdm import tqdm
 
+from defs import VOCAB_SIZE
+
 # Step 1: Download the data.
 url = 'http://mattmahoney.net/dc/'
 
@@ -43,7 +45,7 @@ words = read_data()
 print('Data size', len(words))
 
 # Step 2: Build the dictionary and replace rare words with UNK token.
-vocabulary_size = 50000
+vocabulary_size = VOCAB_SIZE
 
 def build_dataset(words):
   count = [['UNK', -1]]
