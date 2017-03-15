@@ -33,9 +33,7 @@ def load_word_vector_mapping(vocab_file, vector_file):
     ret = collections.OrderedDict()
     for vocab, vector in zip(vocab_file, vector_file):
         vocab = vocab.strip()
-        print(vocab)
         vector = vector.strip()
-        print(vector)
         ret[vocab] = np.array(list(map(float, vector.split())))
     return ret
 
@@ -78,6 +76,7 @@ def occurence_prob(window, string_to_index, embeddings):
     context = range(0, windowsz/2) + range(windowsz/2 + 2, windowsz)
     center_idx = string_to_index[window[windowsz/2 + 1]]
     probs = tf.log(tf.nn.softmax(embeddings[center_idx], embeddings))
+    print('word:', embeddings[center_idx], 'prob:', probs)
     s = 0
     for i in context:
         s += probs[i]
@@ -89,8 +88,8 @@ def predict_sense(window, string_to_index, possible_senses, embeddings):
     center word in the window
     (assumes odd total window size)
     '''
-    possibilities = [p for p in itertools.product(*[possible_senses[word] for word in window])]
-    return max(possibilities, key=lambda x: occurence_prob(x))
+    possibilities = [p for p in itertools.product(*[list(possible_senses[word]) for word in window.split()])]
+    return max(possibilities, key=lambda x: occurence_prob(x, string_to_index, embeddings))
 
 
 with open("data/reverse_dictionary.p", "rb") as f:
@@ -99,4 +98,11 @@ with open("data/reverse_dictionary.p", "rb") as f:
 vocab = read_file("data/vocab.txt")
 word_vectors = read_file("data/word_vectors.txt")
 si, ps = generate_dicts(rd)
-load_embeddings(vocab, word_vectors, si)
+embeddings = load_embeddings(vocab, word_vectors, si)
+
+# Semcor br-a01
+sentence = "The jury further said in term end presentments that the City Executive Committee, which had over-all charge of the election"
+
+wind = "The jury further said in"
+test = "this is test"
+print(predict_sense(test, si, ps, embeddings))
