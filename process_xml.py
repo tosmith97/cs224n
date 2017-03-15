@@ -18,9 +18,10 @@ def main():
     '''
     dirname = sys.argv[-1]
     with open('training_data.p', 'wb') as f:
-        chars = [',', '.', '-', '--', '*']
-        full_string = get_dir_string(dirname).translate(None, ''.join(chars))
-        full_string = ' '.join([w for w in full_string.split() if len(w)>1 or w == 'I' or w == 'a' or w == 'i' or w == 'A']).lower()
+        # chars = [',', '.', '-', '--', '*']
+        full_string = get_dir_string(dirname)
+        # full_string = re.sub(ur"[^\w\d'\s]+",'', get_dir_string(dirname))
+        # full_string = ' '.join([w for w in full_string.split() if len(w)>1 or w == 'I' or w == 'a' or w == 'i' or w == 'A']).lower()
         pickle.dump(full_string, f)
 
 def parse_directory(dirname):
@@ -76,6 +77,32 @@ def get_sense_name(element):
 def is_apostrophe_chunk(token):
     return len(token) > 0 and token[0] == '\''
 
+
+def is_number(s):
+    '''
+    taken from Python Central
+    http://pythoncentral.io/how-to-check-if-a-string-is-a-number-in-python-including-unicode/
+    '''
+    try:
+        float(s)
+        return True
+    except ValueError:
+        pass
+ 
+    try:
+        import unicodedata
+        unicodedata.numeric(s)
+        return True
+    except (TypeError, ValueError):
+        pass
+ 
+    return False
+
+
+def is_valid(w):
+    return (len(w)>1 or w == 'I' or w == 'a' or w == 'i' or w == 'A') and w != "--"
+
+
 def get_word_sequence(root):
     '''
     Iterate through xml root 
@@ -95,6 +122,12 @@ def get_word_sequence(root):
         fixed_seq.append(to_append)
     if not is_apostrophe_chunk(seq[-1]) and len(seq[-1]) > 0:
         fixed_seq.append(seq[-1])
+
+    fixed_seq = [word.lower() for word in fixed_seq if is_valid(word)]
+    for i, s in enumerate(fixed_seq):
+        if is_number(s):
+            fixed_seq[i] = 'NUM'
+
     return fixed_seq
 
 

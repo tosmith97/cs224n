@@ -121,13 +121,3 @@ final_embeddings = run()
 
 # save word vecs
 np.savetxt('data/word_vectors.txt', final_embeddings)
-
-# save vocab
-vocab_list = reverse_dictionary.values()
-with open('data/vocab.txt', 'w') as f:
-    for v in vocab_list:
-        f.write("%s\n" % v)
-
-# Visualize the embeddings.
-visualize_embeddings(final_embeddings, reverse_dictionary)
-

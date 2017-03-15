@@ -12,21 +12,31 @@ import numpy as np
 import tensorflow as tf
 import collections
 import itertools
+import cPickle as pickle
 
 from defs import EMBED_SIZE, VOCAB_SIZE
 
-def load_word_vector_mapping(vocab_file, vector_fstream):
+
+def read_file(filename):
+    with open(filename, 'r') as f:
+        content = f.readlines()
+    return content 
+
+
+def load_word_vector_mapping(vocab_file, vector_file):
     """
     Load word vector mapping using @vocab_fstream, @vector_fstream.
     Assumes each line of the vocab file matches with those of the vector
     file.
     Adopted from assignment 3
     """
-    ret = OrderedDict()
-    for vocab, vector in zip(vocab_fstream, vector_fstream):
+    ret = collections.OrderedDict()
+    for vocab, vector in zip(vocab_file, vector_file):
         vocab = vocab.strip()
+        print(vocab)
         vector = vector.strip()
-        ret[vocab] = array(list(map(float, vector.split())))
+        print(vector)
+        ret[vocab] = np.array(list(map(float, vector.split())))
     return ret
 
 
@@ -38,9 +48,6 @@ def load_embeddings(vocab_file, wordvec_file, string_to_index):
     embeddings = np.array(np.random.randn(VOCAB_SIZE, EMBED_SIZE), dtype=np.float32)
     embeddings[0] = 0.0
     for word, vec in load_word_vector_mapping(vocab_file, wordvec_file).items():
-        # Do we want to normalize words/numbers? 
-        # word = normalize(word)
-
         # see if word is in vocab; it will because of how we structured our stuff
         embeddings[string_to_index[word]] = vec
     print("Initialized embeddings.")
@@ -84,3 +91,12 @@ def predict_sense(window, string_to_index, possible_senses, embeddings):
     '''
     possibilities = [p for p in itertools.product(*[possible_senses[word] for word in window])]
     return max(possibilities, key=lambda x: occurence_prob(x))
+
+
+with open("data/reverse_dictionary.p", "rb") as f:
+    rd = pickle.load(f)
+
+vocab = read_file("data/vocab.txt")
+word_vectors = read_file("data/word_vectors.txt")
+si, ps = generate_dicts(rd)
+load_embeddings(vocab, word_vectors, si)
