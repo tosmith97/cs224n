@@ -73,10 +73,19 @@ def occurence_prob(window, string_to_index, embeddings):
     compute the probability of them occuring together
     '''
     windowsz = len(window)
-    context = range(0, windowsz/2) + range(windowsz/2 + 2, windowsz)
-    center_idx = string_to_index[window[windowsz/2 + 1]]
-    probs = tf.log(tf.nn.softmax(embeddings[center_idx], embeddings))
-    print('word:', embeddings[center_idx], 'prob:', probs)
+    context = range(0, int(windowsz/2)) + range(int(windowsz/2) + 2, windowsz)
+    center_idx = string_to_index[window[int(windowsz/2) + 1]]
+
+    # is this math correct/what we want?
+    center_vec = tf.constant(embeddings[center_idx])
+    probs = tf.log(tf.nn.softmax(center_vec))
+
+    init = tf.global_variables_initializer()
+    sess = tf.Session()
+    sess.run(init)
+
+    probs = sess.run(probs)
+    
     s = 0
     for i in context:
         s += probs[i]
@@ -89,6 +98,7 @@ def predict_sense(window, string_to_index, possible_senses, embeddings):
     (assumes odd total window size)
     '''
     possibilities = [p for p in itertools.product(*[list(possible_senses[word]) for word in window.split()])]
+    print(len(possibilities))
     return max(possibilities, key=lambda x: occurence_prob(x, string_to_index, embeddings))
 
 
@@ -104,5 +114,5 @@ embeddings = load_embeddings(vocab, word_vectors, si)
 sentence = "The jury further said in term end presentments that the City Executive Committee, which had over-all charge of the election"
 
 wind = "The jury further said in"
-test = "this is test"
+test = "there's so much space in this room"
 print(predict_sense(test, si, ps, embeddings))
