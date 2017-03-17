@@ -3,3 +3,4 @@ data/
 .vscode/
 *.pyc
 .DS_Store
+eval_data/

@@ -74,18 +74,26 @@ def occurence_prob(window, string_to_index, embeddings):
     '''
     windowsz = len(window)
     context = range(0, int(windowsz/2)) + range(int(windowsz/2) + 2, windowsz)
-    center_idx = string_to_index[window[int(windowsz/2) + 1]]
+    idx = window[int(windowsz/2) + 1]
+    if idx in string_to_index:
+        center_idx = string_to_index[idx]
+    else:
+        center_idx = string_to_index['UNK']
+    #center_idx = string_to_index[window[int(windowsz/2) + 1]]
+
+    tf.reset_default_graph()
+
+    # if we predict just the word, replace with most common sense
 
     # is this math correct/what we want?
     center_vec = tf.constant(embeddings[center_idx])
-    probs = tf.log(tf.nn.softmax(center_vec))
+    probs = tf.log(tf.nn.softmax((tf.matmul(tf.reshape(center_vec, [1, EMBED_SIZE]), tf.transpose(embeddings)))))
 
     init = tf.global_variables_initializer()
     sess = tf.Session()
     sess.run(init)
 
-    probs = sess.run(probs)
-    
+    probs = sess.run(probs)[0]
     s = 0
     for i in context:
         s += probs[i]
@@ -97,8 +105,8 @@ def predict_sense(window, string_to_index, possible_senses, embeddings):
     center word in the window
     (assumes odd total window size)
     '''
-    possibilities = [p for p in itertools.product(*[list(possible_senses[word]) for word in window.split()])]
-    print(len(possibilities))
+    possibilities = [p for p in itertools.product(*[list(possible_senses[word]) if len(possible_senses[word]) > 1 else [word] for word in window.split()])]
+    print('Num of word sense combinations:', len(possibilities))
     return max(possibilities, key=lambda x: occurence_prob(x, string_to_index, embeddings))
 
 
@@ -111,8 +119,8 @@ si, ps = generate_dicts(rd)
 embeddings = load_embeddings(vocab, word_vectors, si)
 
 # Semcor br-a01
-sentence = "The jury further said in term end presentments that the City Executive Committee, which had over-all charge of the election"
+# sentence = "The jury further said in term end presentments that the City Executive Committee, which had over-all charge of the election"
 
-wind = "The jury further said in"
-test = "there's so much space in this room"
-print(predict_sense(test, si, ps, embeddings))
+# wind = "The jury further said in"
+test = "this is a big room"
+#print(predict_sense(test, si, ps, embeddings))

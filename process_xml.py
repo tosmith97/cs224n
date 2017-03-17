@@ -59,6 +59,17 @@ def get_dir_string(dirname):
             full_string += get_file_string(os.path.join(dirpath, filename)) + ' '
     return full_string
 
+def get_dir_list(dirname, get_file_string):
+    '''
+    Recursively iterate through directories and compile
+    all the file strings into one string
+    '''
+    full_string = []
+    for dirpath, dirs, files in os.walk(dirname):
+        for filename in fnmatch.filter(files, '*.xml'):
+            full_string += get_file_string(os.path.join(dirpath, filename))
+    return full_string
+
 def get_sense_name(element):
     '''
     tag a token with its sense
