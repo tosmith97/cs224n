@@ -48,6 +48,14 @@ def get_file_string(filename):
     root = xml.etree.ElementTree.parse(filename).getroot()
     return ' '.join(get_word_sequence(root))
 
+def get_file_sequence(filename):
+    '''
+    Convert xml file to a single string,
+    gluing together contractions (w/ apostrophes)
+    '''
+    root = xml.etree.ElementTree.parse(filename).getroot()
+    return get_word_sequence(root)
+
 def get_dir_string(dirname):
     '''
     Recursively iterate through directories and compile
@@ -58,6 +66,13 @@ def get_dir_string(dirname):
         for filename in fnmatch.filter(files, '*.xml'):
             full_string += get_file_string(os.path.join(dirpath, filename)) + ' '
     return full_string
+
+def get_dir_sequences(dirname):
+    all_sequences = []
+    for dirpath, dirs, files in os.walk(dirname):
+        for filename in fnmatch.filter(files, '*.xml'):
+            all_sequences.append(get_file_sequence(os.path.join(dirpath, filename)))
+    return all_sequences
 
 def get_dir_list(dirname, get_file_string):
     '''
