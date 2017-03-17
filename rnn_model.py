@@ -1,6 +1,7 @@
 '''
 LSTM-based model for WSD
 prediction purposes
+IMPORTANT: Run with Python 3
 '''
 # adapted from http://machinelearningmastery.com/sequence-classification-lstm-recurrent-neural-networks-python-keras/
 import numpy as np
@@ -13,13 +14,20 @@ from keras.layers.convolutional import MaxPooling1D
 from keras.layers.embeddings import Embedding
 from keras.preprocessing import sequence
 from keras.layers.core import Dropout
-
+import cPickle as pickle
 kEmbeddingVectorLength = 64
 kTopWords = 40000
 kMaxLength = 100 # tweak this
 
 # use predict_proba
 # look at embedding intialization
+
+def load_data():
+    '''
+    Read in saved training data (most likely
+    will use np.loadtxt)
+    '''
+    return None, None
 
 def add_seq(seq, string_to_index, X_train_list, y_train_list, history_len):
     '''
@@ -65,12 +73,13 @@ def predict(model, unlabeled_history):
     of senses)
     '''
     pass
-
-def main():
+def build_and_train_model(X_train, y_train):
     '''
-    Defines and trains an RNN language model
-    the model attempts to prdeict the next word
-    given 
+    Builds keras LSTM model and trains using
+    the provided input np arrays. the model
+    attempts to predict the next word given 
+    a previous history (of labeled data)
+    The trained model is returned
     '''
     model = Sequential()
     model.add(Embedding(kTopWords, kEmbeddingVectorLength, input_length=kMaxLength))
@@ -79,10 +88,21 @@ def main():
     model.add(Dropout(rate=0.2))
     #model.add(Dense(kTopWords)) # do we need a dense layer?
     model.add(Activation('softmax'))
-    model.compile(loss='categorical_crossentropy', optimizer='rmsprop')
+    model.compile(loss='categorical_crossentropy', optimizer='adam')
     print(model.summary())
-    #(X_train, y_train), (X_test, y_test) = load_data()
+    model.fit(X_train, y_train, nb_epoch=3, batch_size=64)
+    return model
 
+
+def main():
+    '''
+    Defines and trains an RNN language model
+    
+    '''
+    # set stateful = True? use 1-hot representation of words?
+    X_train, y_train = load_data()
+    model = build_and_train_model(X_train, y_train)
+    # need to test on some sense examples
 
 if __name__ == '__main__':
     main()
