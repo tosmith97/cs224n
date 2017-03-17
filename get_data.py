@@ -16,27 +16,10 @@ from tqdm import tqdm
 
 from defs import VOCAB_SIZE
 
-# Step 1: Download the data.
-url = 'http://mattmahoney.net/dc/'
-
-def maybe_download(filename, expected_bytes):
-  """Download a file if not present, and make sure it's the right size."""
-  if not os.path.exists(filename):
-    filename, _ = urllib.request.urlretrieve(url + filename, filename)
-  statinfo = os.stat(filename)
-  if statinfo.st_size == expected_bytes:
-    print('Found and verified', filename)
-  else:
-    print(statinfo.st_size)
-    raise Exception(
-        'Failed to verify ' + filename + '. Can you get to it with a browser?')
-  return filename
-
-filename = maybe_download('text8.zip', 31344016)
 
 # Read the data into a list of strings.
 def read_data():
-  """Extract the first file enclosed in a zip file as a list of words"""
+  """Open pickle from process_xml.py"""
   with open('training_data.p', 'rb') as f:
     data = pickle.load(f).split()
   return data

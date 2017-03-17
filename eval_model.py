@@ -121,7 +121,18 @@ def see_prediction_results(eval_data, idx_of_sense):
         if window_has_senses(idx_of_sense, (i - WINDOW_SIZE, i + WINDOW_SIZE + 1)):
             # predict that shit
             window = ' '.join(eval_data[i - WINDOW_SIZE: i + WINDOW_SIZE + 1])
-            pred_senses = predict_sense.predict_sense(window, string_to_index, possible_senses, embeddings)
+            
+            # if we don't tag a predicted word with a sense, 
+            # despite it having senses, tag it with the most frequent sense.            
+            pred_senses = list(predict_sense.predict_sense(window, string_to_index, possible_senses, embeddings))
+            for k, p_s in enumerate(pred_senses):
+                check = window.split()[k]
+                num_senses = len(possible_senses[p_s])
+
+                # if a given word has >1 sense and the sense it's tagged with is smallest in that list
+                if num_senses > 1 and p_s == min((word for word in possible_senses[check]), key=len): 
+                    pred_senses[k] = list(possible_senses[p_s])[0] if (pred_senses[k] != list(possible_senses[p_s])[0]) else list(possible_senses[p_s])[1] 
+
             senses = get_senses_in_window(window, idx_of_sense, (i - WINDOW_SIZE, i + WINDOW_SIZE + 1), eval_data)
 
             for word in xrange(len(pred_senses) - 1):
@@ -130,7 +141,10 @@ def see_prediction_results(eval_data, idx_of_sense):
                     num_correct += 1
                     correct.append(("Predicted: " + pred_senses[word], "Actual:" + senses[word]))
                 else:
-                    incorrect.append(("Predicted: " + pred_senses[word], "Actual:" + senses[word]))
+                    if '/' in senses[word]:
+                        incorrect.append(("Predicted: " + pred_senses[word], "Actual:" + senses[word]))
+                    else:
+                        tot_comparisons -= 1
         
             if i % 10 == 0 and tot_comparisons > 0:
                 print("Writing to file...")
