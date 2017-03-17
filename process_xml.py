@@ -15,9 +15,10 @@ def main():
     Invocation: python process_xml.py <dirname>
     '''
     dirname = sys.argv[-1]
+    full_string = get_dir_string(dirname)
     with open('training_data.p', 'wb') as f:
-        full_string = get_dir_string(dirname)
         pickle.dump(full_string, f)
+
 
 def parse_directory(dirname):
     '''
@@ -138,7 +139,7 @@ def get_word_sequence(root):
         if is_apostrophe_chunk(seq[i]):
             continue
         to_append = seq[i]
-        if is_apostrophe_chunk(seq[i+1]):
+        if is_apostrophe_chunk(seq[i+1]) and 'sense' not in seq[i]:
             to_append += seq[i+1]
         fixed_seq.append(to_append)
     if not is_apostrophe_chunk(seq[-1]) and len(seq[-1]) > 0:

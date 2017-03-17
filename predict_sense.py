@@ -105,7 +105,8 @@ def predict_sense(window, string_to_index, possible_senses, embeddings):
     center word in the window
     (assumes odd total window size)
     '''
-    possibilities = [p for p in itertools.product(*[list(possible_senses[word]) if len(possible_senses[word]) > 1 else [word] for word in window.split()])]
+    possibilities = [p for p in itertools.product(*[list(possible_senses[word]) if (len(possible_senses[word]) > 0 and any('/sense' in w for w in list(possible_senses[word]))) else [word] for word in window.split()])]
+    print('Window:', window)
     print('Num of word sense combinations:', len(possibilities))
     return max(possibilities, key=lambda x: occurence_prob(x, string_to_index, embeddings))
 

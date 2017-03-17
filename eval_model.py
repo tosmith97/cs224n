@@ -4,6 +4,9 @@ import collections
 import os
 import fnmatch
 import cPickle as pickle
+import tensorflow as tf
+import time
+import argparse
 
 from process_xml import get_dir_list, is_valid, is_apostrophe_chunk, get_sense_name, is_number
 import predict_sense
@@ -11,7 +14,14 @@ from defs import WINDOW_SIZE
 
 
 def main():
-    dirname = sys.argv[-1]
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--dirname', action='store', dest='dirname', type=str)  
+    parser.add_argument('--incorr_fn', action='store', dest='incorr_fn', type=str)
+
+    results = parser.parse_args()
+    dirname = results.dirname
+    incorr_fn = results.incorr_fn
+
     eval_data = get_dir_list(dirname, get_file_str)
     idx_of_sense = collections.defaultdict()
 
@@ -22,7 +32,7 @@ def main():
             eval_data[i] = w.split('/', 1)[0]
             idx_of_sense[i] = w
     
-    see_prediction_results(eval_data, idx_of_sense)
+    see_prediction_results(eval_data, idx_of_sense, incorr_fn)
 
     # print(eval_data)
     # print(idx_of_sense)
@@ -91,7 +101,7 @@ def get_senses_in_window(window, idx_of_sense, idx_range, eval_data):
 
 
 
-def see_prediction_results(eval_data, idx_of_sense):
+def see_prediction_results(eval_data, idx_of_sense, incorr_fn):
     # with open("data/reverse_dictionary.p", "rb") as f:
     #     rd = pickle.load(f)
 
@@ -105,43 +115,63 @@ def see_prediction_results(eval_data, idx_of_sense):
     # predict senses for WINDOW_SIZE
     # compare predicted senses to actual senses
     # have acc = num_correct/tot
-    
-    num_correct = 0
-    tot_comparisons = 0
-    incorrect = []
-    correct = []
+    with tf.device('/gpu:0'):
+        num_correct = 0
+        tot_comparisons = 0
+        incorrect = []
+        correct = []
 
-    embeddings = predict_sense.embeddings
-    string_to_index = predict_sense.si
-    possible_senses = predict_sense.ps
+        embeddings = predict_sense.embeddings
+        string_to_index = predict_sense.si
+        possible_senses = predict_sense.ps
 
+        start = time.time()
+        # Current predict_sense finds predictions for whole window - do we need a center word? 
+        for i in range(WINDOW_SIZE, len(eval_data) - WINDOW_SIZE):
+            if window_has_senses(idx_of_sense, (i - WINDOW_SIZE, i + WINDOW_SIZE + 1)):
+                # predict that shit
+                window = ' '.join(eval_data[i - WINDOW_SIZE: i + WINDOW_SIZE + 1])
+                
+                # if we don't tag a predicted word with a sense, 
+                # despite it having senses, tag it with the most frequent sense.            
+                pred_senses = list(predict_sense.predict_sense(window, string_to_index, possible_senses, embeddings))
+                print(pred_senses)
+                for k, p_s in enumerate(pred_senses):
+                    check = window.split()[k]
+                    num_senses = len(possible_senses[p_s])
 
-    # Current predict_sense finds predictions for whole window - do we need a center word? 
-    for i in range(WINDOW_SIZE, len(eval_data) - WINDOW_SIZE):
-        if window_has_senses(idx_of_sense, (i - WINDOW_SIZE, i + WINDOW_SIZE + 1)):
-            # predict that shit
-            window = ' '.join(eval_data[i - WINDOW_SIZE: i + WINDOW_SIZE + 1])
-            pred_senses = predict_sense.predict_sense(window, string_to_index, possible_senses, embeddings)
-            senses = get_senses_in_window(window, idx_of_sense, (i - WINDOW_SIZE, i + WINDOW_SIZE + 1), eval_data)
+                    # if a given word has >1 sense and the sense it's tagged with is smallest in that list
+                    if num_senses > 1 and p_s == min((word for word in possible_senses[check]), key=len): 
+                        pred_senses[k] = list(possible_senses[p_s])[0] if (pred_senses[k] != list(possible_senses[p_s])[0]) else list(possible_senses[p_s])[1] 
 
-            for word in xrange(len(pred_senses) - 1):
-                tot_comparisons += 1
-                if pred_senses[word] == senses[word]:
-                    num_correct += 1
-                    correct.append(("Predicted: " + pred_senses[word], "Actual:" + senses[word]))
-                else:
-                    incorrect.append(("Predicted: " + pred_senses[word], "Actual:" + senses[word]))
-        
-            if i % 10 == 0 and tot_comparisons > 0:
-                print("Writing to file...")
-                with open("incorrect.txt", 'w') as f:
-                    f.write("Tested: " + str(tot_comparisons))
-                    f.write("Accuracy:" + str(float(num_correct)/tot_comparisons))
-                    f.write('\n'.join('%s %s' % x for x in incorrect))    
+                senses = get_senses_in_window(window, idx_of_sense, (i - WINDOW_SIZE, i + WINDOW_SIZE + 1), eval_data)
 
-    print("Accuracy:", float(num_correct)/tot_comparisons)
-    with open("incorrect.txt", 'w') as f:
-        f.write('\n'.join('%s %s' % x for x in incorrect))
+                for word in xrange(len(pred_senses) - 1):
+                    tot_comparisons += 1
+                    if pred_senses[word] == senses[word]:
+                        num_correct += 1
+                        correct.append(("Predicted: " + pred_senses[word], "Actual:" + senses[word]))
+                    else:
+                        if '/' in senses[word]:
+                            incorrect.append(("Predicted: " + pred_senses[word], "Actual:" + senses[word]))
+                        else:
+                            tot_comparisons -= 1
+            
+                if i % 50 == 0 and tot_comparisons > 0:
+                    print("Writing to file...")
+                    with open(incorr_fn, 'w') as f:
+                        f.write("Tested: " + str(tot_comparisons))
+                        f.write("\tAccuracy:" + str(float(num_correct)/tot_comparisons))
+                        f.write("\n")
+                        f.write('\n'.join('%s %s' % x for x in incorrect))    
+
+        print("Evaluation took %.2f seconds" % (time.time() - start))
+        print("Accuracy:", float(num_correct)/tot_comparisons)
+        with open(incorr_fn, 'w') as f:
+            f.write("Tested: " + str(tot_comparisons))
+            f.write("\tAccuracy:" + str(float(num_correct)/tot_comparisons))
+            f.write("\n")
+            f.write('\n'.join('%s %s' % x for x in incorrect))
 
 
 
