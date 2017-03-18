@@ -4,6 +4,7 @@ prediction purposes
 IMPORTANT: Run with Python 3
 '''
 # adapted from http://machinelearningmastery.com/sequence-classification-lstm-recurrent-neural-networks-python-keras/
+# embedding inspiration: https://blog.keras.io/using-pre-trained-word-embeddings-in-a-keras-model.html
 import numpy as np
 from keras.datasets import imdb
 from keras.models import Sequential
@@ -15,9 +16,10 @@ from keras.layers.embeddings import Embedding
 from keras.preprocessing import sequence
 from keras.layers.core import Dropout
 import cPickle as pickle
-kEmbeddingVectorLength = 64
+kEmbeddingVectorLength = 128
 kTopWords = 40000
-kMaxLength = 100 # tweak this
+kMaxLength = 10 # tweak this
+kEmbeddingPath = ''
 
 # use predict_proba
 # look at embedding intialization
@@ -73,6 +75,7 @@ def predict(model, unlabeled_history):
     of senses)
     '''
     pass
+
 def build_and_train_model(X_train, y_train):
     '''
     Builds keras LSTM model and trains using
@@ -81,8 +84,11 @@ def build_and_train_model(X_train, y_train):
     a previous history (of labeled data)
     The trained model is returned
     '''
-    model = Sequential()
-    model.add(Embedding(kTopWords, kEmbeddingVectorLength, input_length=kMaxLength))
+    model = Sequential() # can feed in our own embeddings
+    emb_matrix = np.loadtxt(kEmbeddingPath)
+    embedding = Embedding(kTopWords, kEmbeddingVectorLength, 
+        weights=[emb_matrix], input_length=kMaxLength, trainable=False)
+    model.add(embedding)
     model.add(Dropout(rate=0.2))
     model.add(LSTM(100, return_sequences=True))
     model.add(Dropout(rate=0.2))
