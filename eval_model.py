@@ -17,25 +17,57 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--dirname', action='store', dest='dirname', type=str)  
     parser.add_argument('--incorr_fn', action='store', dest='incorr_fn', type=str)
+    parser.add_argument('--correct_fn', action='store', dest='correct_fn', type=str)
+    parser.add_argument('--weight_scores', action='store', dest='weight_scores', type=bool, default=False)
+
+    # MLS = Most Likeley Sense
+    parser.add_argument('--mls', action='store', dest='mls', type=bool, default=False)
+
 
     results = parser.parse_args()
     dirname = results.dirname
     incorr_fn = results.incorr_fn
+    correct_fn = results.correct_fn
+    weight_scores = results.weight_scores
+    mls = results.mls
 
     eval_data = get_dir_list(dirname, get_file_str)
     idx_of_sense = collections.defaultdict()
 
-    # only put indices of words w/ senses in defaultdict to minimize space complexity
+    possible_senses = predict_sense.ps
+
+    # only put indices of words w/ 1> senses in defaultdict to minimize space complexity
     # want to pass words without senses to eval
     for i, w in enumerate(eval_data):
         if '/' in w:
             eval_data[i] = w.split('/', 1)[0]
-            idx_of_sense[i] = w
-    
-    see_prediction_results(eval_data, idx_of_sense, incorr_fn)
 
-    # print(eval_data)
-    # print(idx_of_sense)
+            # ensure word has >1 senses
+            if has_valid_senses(eval_data[i], possible_senses):   
+                idx_of_sense[i] = w
+    
+    see_prediction_results(eval_data, idx_of_sense, incorr_fn, correct_fn, weight_scores, mls)
+
+
+def has_valid_senses(word, possible_senses):
+    ''' 
+    We want words with >1 unique senses, not including the word itself
+    E.g. Good: word1 -> word1/sense1, word1/sense2, ...
+
+         Bad: word1 -> word1
+              word1 -> word1/sense1
+              word1 -> word1/sense1, word1
+    '''
+
+    if len(possible_senses[word]) < 2:
+        return False
+    
+    if len(possible_senses[word]) == 2:
+        for sense in possible_senses[word]:
+            if word == sense:
+                return False
+    
+    return True
 
 
 def get_file_str(filename):
@@ -63,13 +95,13 @@ def get_word_sequence(root):
     by gluing together to form 
     contractions.
     '''
-    seq = [process_element(word) for word in root]
+    seq = [get_sense_name(word) for word in root]
     fixed_seq = []
     for i in xrange(len(seq) - 1):
         if is_apostrophe_chunk(seq[i]):
             continue
         to_append = seq[i]
-        if is_apostrophe_chunk(seq[i+1]):
+        if is_apostrophe_chunk(seq[i+1]) and 'sense' not in seq[i]:
             to_append += seq[i+1]
         fixed_seq.append(to_append)
     if not is_apostrophe_chunk(seq[-1]) and len(seq[-1]) > 0:
@@ -79,7 +111,7 @@ def get_word_sequence(root):
     for i, s in enumerate(fixed_seq):
         if is_number(s):
             fixed_seq[i] = 'NUM'
-        
+
     return fixed_seq
 
 
@@ -88,28 +120,36 @@ def window_has_senses(idx_of_sense, idx_range):
     return any(key in idx_of_sense for key in range(idx_range[0], idx_range[1]))
 
 
-def get_senses_in_window(window, idx_of_sense, idx_range, eval_data):
+def get_senses_in_window(window, idx_of_sense, idx_range):
     window_senses = []
     
     for idx in range(idx_range[0], idx_range[1]):
         if idx in idx_of_sense:
             window_senses.append(idx_of_sense[idx])
         else:
-            window_senses.append(eval_data[idx])
+            window_senses.append(None)
     
     return window_senses
 
 
+def get_mls_for_window(window, possible_senses):
+    mls_window = []
 
-def see_prediction_results(eval_data, idx_of_sense, incorr_fn):
-    # with open("data/reverse_dictionary.p", "rb") as f:
-    #     rd = pickle.load(f)
+    for word in window.split():
+        senses = list(possible_senses[word])
 
-    # vocab = read_file("data/vocab.txt")
-    # word_vectors = read_file("data/word_vectors.txt")
-    # si, ps = generate_dicts(rd)
-    # embeddings = load_embeddings(vocab, word_vectors, si)
+        if len(senses) == 1:
+            most_common_sense = senses[0]
+        elif len(senses) > 1:
+            most_common_sense = senses[0] if (word != senses[0]) else senses[1]
+        else:
+            most_common_sense = word
+        mls_window.append(most_common_sense)
 
+    return mls_window
+
+
+def see_prediction_results(eval_data, idx_of_sense, incorr_fn, correct_fn, weighted_scores, mls):
     # take window
     # See if words in window have senses that need predicting 
     # predict senses for WINDOW_SIZE
@@ -130,40 +170,47 @@ def see_prediction_results(eval_data, idx_of_sense, incorr_fn):
         for i in range(WINDOW_SIZE, len(eval_data) - WINDOW_SIZE):
             if window_has_senses(idx_of_sense, (i - WINDOW_SIZE, i + WINDOW_SIZE + 1)):
                 # predict that shit
-                window = ' '.join(eval_data[i - WINDOW_SIZE: i + WINDOW_SIZE + 1])
-                
-                # if we don't tag a predicted word with a sense, 
-                # despite it having senses, tag it with the most frequent sense.            
-                pred_senses = list(predict_sense.predict_sense(window, string_to_index, possible_senses, embeddings))
-                print(pred_senses)
-                for k, p_s in enumerate(pred_senses):
+                window = ' '.join(eval_data[i - WINDOW_SIZE: i + WINDOW_SIZE + 1])           
+                pred_senses = get_mls_for_window(window, possible_senses) if mls else list(predict_sense.predict_sense(window, string_to_index, possible_senses, embeddings))
+
+                # sense sanity check
+                for k, pred_s in enumerate(pred_senses):
                     check = window.split()[k]
-                    num_senses = len(possible_senses[p_s])
+                    num_senses = len(possible_senses[pred_s])
 
-                    # if a given word has >1 sense and the sense it's tagged with is smallest in that list
-                    if num_senses > 1 and p_s == min((word for word in possible_senses[check]), key=len): 
-                        pred_senses[k] = list(possible_senses[p_s])[0] if (pred_senses[k] != list(possible_senses[p_s])[0]) else list(possible_senses[p_s])[1] 
+                    # if we don't tag a predicted word with a sense, 
+                    # despite it having >1 senses, tag it with the most frequent sense. 
+                    if num_senses > 1 and pred_s == min((word for word in possible_senses[check]), key=len): 
+                        pred_senses[k] = list(possible_senses[pred_s])[0] if (pred_senses[k] != list(possible_senses[pred_s])[0]) else list(possible_senses[pred_s])[1] 
 
-                senses = get_senses_in_window(window, idx_of_sense, (i - WINDOW_SIZE, i + WINDOW_SIZE + 1), eval_data)
+                senses = get_senses_in_window(window, idx_of_sense, (i - WINDOW_SIZE, i + WINDOW_SIZE + 1))
 
                 for word in xrange(len(pred_senses) - 1):
-                    tot_comparisons += 1
-                    if pred_senses[word] == senses[word]:
-                        num_correct += 1
-                        correct.append(("Predicted: " + pred_senses[word], "Actual:" + senses[word]))
-                    else:
-                        if '/' in senses[word]:
-                            incorrect.append(("Predicted: " + pred_senses[word], "Actual:" + senses[word]))
+                    # ensure that all words we look at have multiple senses
+                    if senses[word] is not None:
+                        # add appropriate value to total score; 1 in base case, num_senses if weighted score
+                        tot_comparisons += num_senses if (weighted_scores and num_senses > 0) else 1
+
+                        # see if predictions are correct
+                        if pred_senses[word] == senses[word]:
+                            # add 1 in base case, num_senses if weighted score
+                            num_correct += num_senses if (weighted_scores and num_senses > 0) else 1
+                            correct.append(("Predicted: " + pred_senses[word], "Actual:" + senses[word]))
                         else:
-                            tot_comparisons -= 1
+                            if '/' in senses[word]:
+                                incorrect.append(("Predicted: " + pred_senses[word], "Actual:" + senses[word]))
+                            else:
+                                # this means word in corpus doesn't have sense, no need to compare
+                                tot_comparisons -= num_senses if (weighted_scores and num_senses > 0) else 1
+
             
-                if i % 50 == 0 and tot_comparisons > 0:
-                    print("Writing to file...")
-                    with open(incorr_fn, 'w') as f:
-                        f.write("Tested: " + str(tot_comparisons))
-                        f.write("\tAccuracy:" + str(float(num_correct)/tot_comparisons))
-                        f.write("\n")
-                        f.write('\n'.join('%s %s' % x for x in incorrect))    
+                # if i % 100 == 0 and tot_comparisons > 0:
+                #     print("Writing to file...")
+                #     with open(incorr_fn, 'w') as f:
+                #         f.write("Tested: " + str(tot_comparisons))
+                #         f.write("\tAccuracy:" + str(float(num_correct)/tot_comparisons))
+                #         f.write("\n")
+                #         f.write('\n'.join('%s %s' % x for x in incorrect))    
 
         print("Evaluation took %.2f seconds" % (time.time() - start))
         print("Accuracy:", float(num_correct)/tot_comparisons)
@@ -173,7 +220,11 @@ def see_prediction_results(eval_data, idx_of_sense, incorr_fn):
             f.write("\n")
             f.write('\n'.join('%s %s' % x for x in incorrect))
 
-
+        with open(correct_fn, 'w') as f:
+            f.write("Tested: " + str(tot_comparisons))
+            f.write("\tAccuracy:" + str(float(num_correct)/tot_comparisons))
+            f.write("\n")
+            f.write('\n'.join('%s %s' % x for x in correct))
 
 
     # Probs:
