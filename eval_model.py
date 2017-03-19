@@ -51,23 +51,16 @@ def main():
 
 def has_valid_senses(word, possible_senses):
     ''' 
-    We want words with >1 unique senses, not including the word itself
+    We want words with >1 unique senses
+    It is okay for our model to differentiate between an ambiguous sense (word) and a defined sense (word1/sense1)
     E.g. Good: word1 -> word1/sense1, word1/sense2, ...
+               word1 -> word1, word1/sense1
 
          Bad: word1 -> word1
               word1 -> word1/sense1
-              word1 -> word1/sense1, word1
     '''
 
-    if len(possible_senses[word]) < 2:
-        return False
-    
-    if len(possible_senses[word]) == 2:
-        for sense in possible_senses[word]:
-            if word == sense:
-                return False
-    
-    return True
+    return not len(possible_senses[word]) < 2
 
 
 def get_file_str(filename):
@@ -138,12 +131,10 @@ def get_mls_for_window(window, possible_senses):
     for word in window.split():
         senses = list(possible_senses[word])
 
-        if len(senses) == 1:
+        if len(senses) > 0:
             most_common_sense = senses[0]
-        elif len(senses) > 1:
-            most_common_sense = senses[0] if (word != senses[0]) else senses[1]
         else:
-            most_common_sense = word
+            most_common_sense = None
         mls_window.append(most_common_sense)
 
     return mls_window
@@ -172,22 +163,15 @@ def see_prediction_results(eval_data, idx_of_sense, incorr_fn, correct_fn, weigh
                 # predict that shit
                 window = ' '.join(eval_data[i - WINDOW_SIZE: i + WINDOW_SIZE + 1])           
                 pred_senses = get_mls_for_window(window, possible_senses) if mls else list(predict_sense.predict_sense(window, string_to_index, possible_senses, embeddings))
-
-                # sense sanity check
-                for k, pred_s in enumerate(pred_senses):
-                    check = window.split()[k]
-                    num_senses = len(possible_senses[pred_s])
-
-                    # if we don't tag a predicted word with a sense, 
-                    # despite it having >1 senses, tag it with the most frequent sense. 
-                    if num_senses > 1 and pred_s == min((word for word in possible_senses[check]), key=len): 
-                        pred_senses[k] = list(possible_senses[pred_s])[0] if (pred_senses[k] != list(possible_senses[pred_s])[0]) else list(possible_senses[pred_s])[1] 
-
-                senses = get_senses_in_window(window, idx_of_sense, (i - WINDOW_SIZE, i + WINDOW_SIZE + 1))
+                senses = get_senses_in_window(window, idx_of_sense, (i - WINDOW_SIZE, i + WINDOW_SIZE + 1))               
 
                 for word in xrange(len(pred_senses) - 1):
                     # ensure that all words we look at have multiple senses
-                    if senses[word] is not None:
+                    if senses[word] is not None and pred_senses[word] is not None:
+
+                        # number of senses for word 
+                        num_senses = len(possible_senses[window.split()[word]])
+
                         # add appropriate value to total score; 1 in base case, num_senses if weighted score
                         tot_comparisons += num_senses if (weighted_scores and num_senses > 0) else 1
 

@@ -61,10 +61,15 @@ def generate_dicts(reverse_dictionary):
     These are returned as a tuple
     '''
     string_to_index = {reverse_dictionary[key]:key for key in reverse_dictionary}
-    possible_senses = collections.defaultdict(set)
+    possible_senses = collections.defaultdict(list)
     for word in string_to_index:
         without_tag = word.split('/')[0]
-        possible_senses[without_tag].add(word)
+        possible_senses[without_tag].append( (word, string_to_index[word]) )
+
+    for k in possible_senses.keys():
+        sort_by_freq = sorted(possible_senses[k], key=lambda x: x[1])
+        possible_senses[k] = [word[0] for word in sort_by_freq] 
+
     return string_to_index, possible_senses
 
 def occurence_prob(window, string_to_index, embeddings):
@@ -105,7 +110,7 @@ def predict_sense(window, string_to_index, possible_senses, embeddings):
     center word in the window
     (assumes odd total window size)
     '''
-    possibilities = [p for p in itertools.product(*[list(possible_senses[word]) if (len(possible_senses[word]) > 0 and any('/sense' in w for w in list(possible_senses[word]))) else [word] for word in window.split()])]
+    possibilities = [p for p in itertools.product(*[list(possible_senses[word]) if (len(possible_senses[word]) > 1 and any('/sense' in w for w in list(possible_senses[word]))) else [None] for word in window.split()])]
     print('Window:', window)
     print('Num of word sense combinations:', len(possibilities))
     return max(possibilities, key=lambda x: occurence_prob(x, string_to_index, embeddings))
