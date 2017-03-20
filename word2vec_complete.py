@@ -118,6 +118,7 @@ def run():
 
 # Let's start training
 final_embeddings = run()
+visualize_embeddings(final_embeddings, reverse_dictionary)
 
 # save word vecs
 np.savetxt('data/word_vectors.txt', final_embeddings)
