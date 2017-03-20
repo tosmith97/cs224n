@@ -2,15 +2,17 @@
 LSTM-based model for WSD
 prediction purposes
 IMPORTANT: Run with Python 3 (maybe -- might need to change this)
+Run with --train True to train the model, --eval True --model_path [path] to evaluate the model
 '''
 # adapted from http://machinelearningmastery.com/sequence-classification-lstm-recurrent-neural-networks-python-keras/
 # embedding inspiration: https://blog.keras.io/using-pre-trained-word-embeddings-in-a-keras-model.html
 # compatible unpickling with python2: http://stackoverflow.com/questions/28218466/unpickling-a-python-2-object-with-python-3
 import h5py
+import argparse, collections
 import numpy as np
 from scipy.sparse import lil_matrix
 from keras.datasets import imdb
-from keras.models import Sequential
+from keras.models import Sequential, load_model
 from keras.layers import Dense, Activation
 from keras.layers.wrappers import TimeDistributed
 from keras.layers import LSTM, GRU
@@ -22,11 +24,11 @@ from keras.layers.core import Dropout
 from keras.optimizers import SGD
 from defs import EMBED_SIZE
 
-import predict_sense
-from process_xml import get_dir_list
-from eval_model.py import has_valid_senses
+from predict_sense import ps, embeddings, si, vocab
+from rnn_utils import *
 
 import _pickle as pickle
+
 kEmbeddingVectorLength = EMBED_SIZE
 kTopWords = 19989
 kMaxLength = 10 # tweak this
@@ -97,7 +99,20 @@ def prepare_data(all_sequences, string_to_index, history_len=5):
         add_seq(seq, string_to_index, X_train_list, y_train_list, history_len)
     return np.array(X_train_list), np.array(y_train_list)
 
-def predict_labeled(model, history, embeddings, vocab, string_to_index):
+def has_valid_senses(word, possible_senses):
+    ''' 
+    We want words with >1 unique senses
+    It is okay for our model to differentiate between an ambiguous sense (word) and a defined sense (word1/sense1)
+    E.g. Good: word1 -> word1/sense1, word1/sense2, ...
+               word1 -> word1, word1/sense1
+
+         Bad: word1 -> word1
+              word1 -> word1/sense1
+    '''
+
+    return not len(possible_senses[word]) < 2
+
+def predict_labeled(model, history, embeddings, vocab, string_to_index, next_word):
     '''
     Given an RNN model and a previous word history
     that has senses labeled, predict the next word 
@@ -106,13 +121,20 @@ def predict_labeled(model, history, embeddings, vocab, string_to_index):
         model: the model
         history: sentence of sense-tagged words, represented as list of strings
     '''
-    # softmax will return |V|-vec, get index of highest val in vec
+    # softmax will return |V|-vec, get index of highest val for a sense in vec 
     # get word 
     
     # turn history into np array of wordvecs
-    history = np.asarray([embeddings[h] for h in history])
-    pred_vec = model.predict(history)
+    history = [string_to_index[h] if h in string_to_index else string_to_index['UNK'] for h in history.split()]
+    history = np.asarray([embeddings[h] for h in history]).T
+    pred_vec = model.predict_proba(history)
+    print('L', len(pred_vec))
+
+    # get probabilities of senses for the word
+    senses = [string_to_index[s] for s in ps[next_word]]
+    potential_words = [pred_vec[s] for s in senses]
     pred_word = vocab[np.argmax(pred_vec)] # idx in vocab list 
+    print(pred_word)
     return pred_word
 
 
@@ -128,26 +150,32 @@ def eval_model(model, embeddings, vocab, eval_data, idx_of_senses):
     '''
     tot_score = 0.0
     score = 0.0
+
+    window = ' '.join([data for data in eval_data[:10]])
     
-    # first window of 10 is exhaustive search
-    first_ten = list(predict_sense.predict_sense(eval_data[:10], predict_sense.si, predict_sense.ps, embeddings))
+    # Assign MLS to first ten words 
+    first_ten = get_mls_for_window(window, ps)
+
+    # Cartesian product TBD
 
     # after first window, feed history into LSTM
     #### WARNING: might break 
     history = first_ten
 
-    for i, curr_word in enumerate(eval_data[10:])
+    for i, curr_word in enumerate(eval_data[10:-1]):
         if len(history) > 10:
             history.pop(0)
 
         # check to see if curr_word has senses 
-        if idx_of_senses[i + 10]: 
-            num_senses = len(predict_sense.ps[curr_word])
+        if (i + 10) in idx_of_senses: 
+            num_senses = len(ps[curr_word])
             tot_score += num_senses
 
             actual = idx_of_senses[i + 10]
-            pred = predict_labeled(model, history, embeddings, vocab, predict_sense.si)
-            
+            window = ' '.join([word for word in history])
+            pred = predict_labeled(model, window, embeddings, vocab, si, eval_data[i + 10 + 1])
+
+
             # compare
             score += tot_score if actual == pred else 0
 
@@ -157,7 +185,9 @@ def eval_model(model, embeddings, vocab, eval_data, idx_of_senses):
         else:
             history.append(curr_word)
 
-    acc = tot_score / score
+    acc = score / tot_score
+    print("Total Available Score:", tot_score)
+    print("Model's Score:", score)
     print("Accuracy:", acc)
 
 # def predict(model, unlabeled_history):
@@ -170,7 +200,7 @@ def eval_model(model, embeddings, vocab, eval_data, idx_of_senses):
 #     '''
 #     pass
 
-def build_and_train_model(X_train, y_train):
+def build_and_train_model(X_train, y_train, learn_embedding=False, learned_emb_dim=32):
     '''
     Builds keras LSTM model and trains using
     the provided input np arrays. the model
@@ -183,12 +213,16 @@ def build_and_train_model(X_train, y_train):
     kTopWords = emb_matrix.shape[0]
     kEmbeddingVectorLength = emb_matrix.shape[1]
 
-    embedding = Embedding(kTopWords, kEmbeddingVectorLength,
-        weights=[emb_matrix], input_length=kMaxLength, trainable=False)
+    if learn_embedding:
+        embedding = Embedding(kTopWords, learned_emb_dim, input_length=kMaxLength, trainable=True)
+    else:
+        embedding = Embedding(kTopWords, kEmbeddingVectorLength,
+            weights=[emb_matrix], input_length=kMaxLength, trainable=False)
+    
     model.add(embedding)
-    model.add(Dropout(rate=0.2))
+    model.add(Dropout(rate=0.25))
     model.add(LSTM(100)) # return_sequences
-    model.add(Dropout(rate=0.2))
+    model.add(Dropout(rate=0.25))
     model.add(Dense(kTopWords, activation='softmax')) # do we need a dense layer?
     #model.add(TimeDistributed(Dense(1)))
     model.add(Activation('softmax'))
@@ -198,7 +232,7 @@ def build_and_train_model(X_train, y_train):
 #    model.compile(loss='categorical_crossentropy', optimizer='adam')
     print(model.summary())
     #model.fit(X_train, y_train, batch_size=64) #nb_epoch?
-    model.fit_generator(generator=batch_generator(X_train, y_train, 32, True), nb_epoch=4,
+    model.fit_generator(generator=batch_generator(X_train, y_train, 32, True), nb_epoch=10,
     steps_per_epoch=X_train.shape[0]//10)
     return model
 
@@ -208,47 +242,64 @@ def main():
     Defines and trains an RNN language model
 
     '''
-    # set stateful = True? use 1-hot representation of words?
-    with open(kTrainingPath, 'rb') as f:
-        training_dict = pickle.load(f, encoding='latin1')
-        X_train, y_train = training_dict['X_train'], training_dict['y_train']
-    #new_X = np.zeros(X_train.shape[0], dtype=list)
-    #for i in range(X_train.shape[0]):
-    #    new_X[i] = X_train[i].tolist()
-    #X_train = new_X#y_train.reshape((kNumtraining,))
-    X_train[X_train >= kTopWords] = kUnkIdx
-    y_one_hot = lil_matrix((y_train.shape[0], kTopWords))
-    for i in range(y_train.shape[0]):
-        pos = y_train[i]
-        pos = pos if pos < kTopWords else kUnkIdx
-        y_one_hot[i, pos] = 1
-    y_train = y_one_hot
-    print('Shape of X_train: ' + str(X_train.shape))
-    print('Shape of y_train: ' + str(y_train.shape))
-    model = build_and_train_model(X_train, y_train)
-    model.save('rnn_10window_5epoch_smallLR.h5')
-    # need to test on some sense examples
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--train', action='store', dest='train', type=bool, default=False)
+    parser.add_argument('--eval', action='store', dest='eval', type=bool, default=False)
+    parser.add_argument('--learn_embeddings', action='store', dest='learn_embeddings', type=bool, default=False)
+    parser.add_argument('--model_path', action='store', dest='model_path', type=str, default='rnn_10window_5epoch_smallLR.h5')  
 
-    # load vocab file, represent as array of words
-    vocab = predict_sense.vocab
-    possible_senses = predict_sense.ps
+    results = parser.parse_args()
+    train = results.train
+    eval = results.eval     
+    model_path = results.model_path
+    learn_embeddings = results.learn_embeddings
 
-    # evaluation data is list of strings
-    eval_data = get_dir_list('one_file/')
+    if train:
+        # set stateful = True? use 1-hot representation of words?
+        with open(kTrainingPath, 'rb') as f:
+            training_dict = pickle.load(f, encoding='latin1')
+            X_train, y_train = training_dict['X_train'], training_dict['y_train']
+        #new_X = np.zeros(X_train.shape[0], dtype=list)
+        #for i in range(X_train.shape[0]):
+        #    new_X[i] = X_train[i].tolist()
+        #X_train = new_X#y_train.reshape((kNumtraining,))
+        X_train[X_train >= kTopWords] = kUnkIdx
+        y_one_hot = lil_matrix((y_train.shape[0], kTopWords))
+        for i in range(y_train.shape[0]):
+            pos = y_train[i]
+            pos = pos if pos < kTopWords else kUnkIdx
+            y_one_hot[i, pos] = 1
+        y_train = y_one_hot
+        print('Shape of X_train: ' + str(X_train.shape))
+        print('Shape of y_train: ' + str(y_train.shape))
+        model = build_and_train_model(X_train, y_train, learn_embeddings)
+        model.save('rnn_10window_5epoch_smallLR.h5')
+        # need to test on some sense examples
 
-    # the indices of words with senses
-    idx_of_sense = collections.defaultdict()
-    # only put indices of words w/ 1> senses in defaultdict to minimize space complexity
-    # want to pass words without senses to eval
-    for i, w in enumerate(eval_data):
-        if '/' in w:
-            eval_data[i] = w.split('/', 1)[0]
+    if eval:
+        # load model
+        model = load_model(model_path)
 
-            # ensure word has >1 senses
-            if has_valid_senses(eval_data[i], possible_senses):   
-                idx_of_sense[i] = w
+        # load vocab file, represent as array of words
+        vocab_list = vocab
+        possible_senses = ps
 
+        # evaluation data is list of strings
+        eval_data = get_dir_list('one_file/', get_file_str)
 
+        # the indices of words with senses
+        idx_of_sense = collections.defaultdict()
+        # only put indices of words w/ 1> senses in defaultdict to minimize space complexity
+        # want to pass words without senses to eval
+        for i, w in enumerate(eval_data):
+            if '/' in w:
+                eval_data[i] = w.split('/', 1)[0]
+
+                # ensure word has >1 senses
+                if has_valid_senses(eval_data[i], possible_senses):   
+                    idx_of_sense[i] = w
+
+        eval_model(model, embeddings, vocab_list, eval_data, idx_of_sense)
 
 
 if __name__ == '__main__':
