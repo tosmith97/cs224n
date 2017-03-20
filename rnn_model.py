@@ -58,7 +58,7 @@ def batch_generator(X, y, batch_size, shuffle):
 def get_index(input_str, string_to_index):
     '''
     If input_str exists, give the corresponding index
-    otherwise give the UNK index. 
+    otherwise give the UNK index.
     '''
     return string_to_index[input_str] if input_str in string_to_index else string_to_index['UNK']
 
@@ -74,7 +74,7 @@ def tostr(train_row, index_to_string):
 def add_seq(seq, string_to_index, X_train_list, y_train_list, history_len):
     '''
     seq: sequence of strings
-    string_to_index: dictionary from string to int 
+    string_to_index: dictionary from string to int
     X_train_list: training history to be modified
     y_train_list: corresponding next word
     history_len: length of sequences fed into RNN to predict next word
@@ -87,7 +87,7 @@ def prepare_data(all_sequences, string_to_index, history_len=5):
     '''
     Takes of every file's word sequence and returns
     a pair (X_train, y_train) in the following format:
-    X_train: <word1> <word2> ... <wordn> 
+    X_train: <word1> <word2> ... <wordn>
     y_train: <nextword> (after X_train)
     This data will then be fed into the RNN language model
     '''
@@ -174,7 +174,7 @@ def build_and_train_model(X_train, y_train):
     '''
     Builds keras LSTM model and trains using
     the provided input np arrays. the model
-    attempts to predict the next word given 
+    attempts to predict the next word given
     a previous history (of labeled data)
     The trained model is returned
     '''
@@ -182,7 +182,8 @@ def build_and_train_model(X_train, y_train):
     emb_matrix = np.loadtxt(kEmbeddingPath)
     kTopWords = emb_matrix.shape[0]
     kEmbeddingVectorLength = emb_matrix.shape[1]
-    embedding = Embedding(kTopWords, kEmbeddingVectorLength, 
+
+    embedding = Embedding(kTopWords, kEmbeddingVectorLength,
         weights=[emb_matrix], input_length=kMaxLength, trainable=False)
     model.add(embedding)
     model.add(Dropout(rate=0.2))
@@ -205,19 +206,16 @@ def build_and_train_model(X_train, y_train):
 def main():
     '''
     Defines and trains an RNN language model
-    
+
     '''
     # set stateful = True? use 1-hot representation of words?
     with open(kTrainingPath, 'rb') as f:
         training_dict = pickle.load(f, encoding='latin1')
-        X_train, y_train = training_dict['X_train'], training_dict['y_train'] 
+        X_train, y_train = training_dict['X_train'], training_dict['y_train']
     #new_X = np.zeros(X_train.shape[0], dtype=list)
     #for i in range(X_train.shape[0]):
     #    new_X[i] = X_train[i].tolist()
-    #X_train = new_X#y_train.reshape((kNumtraining,)) 
-    # X_train = X_train[:20000]
-    # y_train = y_train[:20000]
-
+    #X_train = new_X#y_train.reshape((kNumtraining,))
     X_train[X_train >= kTopWords] = kUnkIdx
     y_one_hot = lil_matrix((y_train.shape[0], kTopWords))
     for i in range(y_train.shape[0]):
