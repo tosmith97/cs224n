@@ -12,7 +12,7 @@ import numpy as np
 import tensorflow as tf
 import collections
 import itertools
-import cPickle as pickle
+import pickle
 
 from defs import EMBED_SIZE, VOCAB_SIZE
 

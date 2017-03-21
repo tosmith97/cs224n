@@ -19,8 +19,9 @@ wordvecs = np.loadtxt('data/word_vectors.txt').tolist()
 
 for idx in bad_indices:
     wordvecs.pop(idx)
+    rd.pop(idx, rd[idx])
 
 wordvecs = np.asarray(wordvecs)
 np.savetxt('data/word_vectors.txt', wordvecs)
 
-
+pickle.dump(rd, open("./data/reverse_dictionary.p", "wb")) 

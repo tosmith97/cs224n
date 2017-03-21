@@ -3,7 +3,7 @@ import sys
 import collections
 import os
 import fnmatch
-import cPickle as pickle
+import pickle
 import tensorflow as tf
 import time
 import argparse

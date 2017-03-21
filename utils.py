@@ -48,3 +48,5 @@ def visualize_embeddings(final_embeddings, reverse_dictionary):
     low_dim_embs = tsne.fit_transform(final_embeddings[:plot_only, :])
     labels = [reverse_dictionary[i] for i in xrange(plot_only)]
     plot_with_labels(low_dim_embs, labels)
+
+w.split('/', 1)[0]

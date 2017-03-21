@@ -8,7 +8,7 @@ Run with --train True to train the model, --eval True --model_path [path] to eva
 # embedding inspiration: https://blog.keras.io/using-pre-trained-word-embeddings-in-a-keras-model.html
 # compatible unpickling with python2: http://stackoverflow.com/questions/28218466/unpickling-a-python-2-object-with-python-3
 import h5py
-import argparse, collections
+import argparse, collections, datetime
 import numpy as np
 from scipy.sparse import lil_matrix
 from keras.datasets import imdb
@@ -24,7 +24,7 @@ from keras.layers.core import Dropout
 from keras.optimizers import SGD
 from defs import EMBED_SIZE
 
-from predict_sense import ps, embeddings, si, vocab
+from predict_sense import ps, embeddings, si, vocab, rd
 from rnn_utils import *
 
 import _pickle as pickle
@@ -127,14 +127,34 @@ def predict_labeled(model, history, embeddings, vocab, string_to_index, next_wor
     # turn history into np array of wordvecs
     history = [string_to_index[h] if h in string_to_index else string_to_index['UNK'] for h in history.split()]
     history = np.asarray([embeddings[h] for h in history]).T
-    pred_vec = model.predict_proba(history)
-    print('L', len(pred_vec))
+    pred_vec = model.predict(history, batch_size=1).T
+    # print('pred_vec', pred_vec.shape)
 
     # get probabilities of senses for the word
     senses = [string_to_index[s] for s in ps[next_word]]
-    potential_words = [pred_vec[s] for s in senses]
-    pred_word = vocab[np.argmax(pred_vec)] # idx in vocab list 
-    print(pred_word)
+    # print('next word:', next_word)
+    # print('senses:', ps[next_word])
+    # print('sense index', senses)
+
+    potential_words = []
+    for s in senses:
+        potential_words.append(list(pred_vec[s-1,:]))
+
+    # potential_words = [pred_vec[s,:] for s in senses]
+    # print('potentials', len(potential_words))
+
+    for i, p in enumerate(potential_words):
+        potential_words[i] = np.linalg.norm(p)
+
+    # idx of best wordvec -> senses[idx]
+    idx = np.argmax(potential_words) 
+    # print(idx)
+
+    #pred_word = vocab[senses[idx]]
+    # print('senee idx', senses[idx])
+    # print('ffs work', rd[senses[idx]])
+    pred_word = rd[senses[idx]]
+    # print(pred_word)
     return pred_word
 
 
@@ -173,7 +193,7 @@ def eval_model(model, embeddings, vocab, eval_data, idx_of_senses):
 
             actual = idx_of_senses[i + 10]
             window = ' '.join([word for word in history])
-            pred = predict_labeled(model, window, embeddings, vocab, si, eval_data[i + 10 + 1])
+            pred = predict_labeled(model, window, embeddings, vocab, si, eval_data[i + 10])
 
 
             # compare
@@ -220,19 +240,19 @@ def build_and_train_model(X_train, y_train, learn_embedding=False, learned_emb_d
             weights=[emb_matrix], input_length=kMaxLength, trainable=False)
     
     model.add(embedding)
-    model.add(Dropout(rate=0.25))
+    model.add(Dropout(rate=0.5))
     model.add(LSTM(100)) # return_sequences
-    model.add(Dropout(rate=0.25))
+    model.add(Dropout(rate=0.5))
     model.add(Dense(kTopWords, activation='softmax')) # do we need a dense layer?
     #model.add(TimeDistributed(Dense(1)))
-    model.add(Activation('softmax'))
+    # model.add(Activation('softmax'))
 
-    sgd = SGD(lr=0.001, decay=1e-6, momentum=1.9)
+    sgd = SGD(lr=0.001, clipvalue=0.5)
     model.compile(loss='categorical_crossentropy', optimizer=sgd)
 #    model.compile(loss='categorical_crossentropy', optimizer='adam')
     print(model.summary())
     #model.fit(X_train, y_train, batch_size=64) #nb_epoch?
-    model.fit_generator(generator=batch_generator(X_train, y_train, 32, True), nb_epoch=10,
+    model.fit_generator(generator=batch_generator(X_train, y_train, 32, True), nb_epoch=2,
     steps_per_epoch=X_train.shape[0]//10)
     return model
 
@@ -246,19 +266,26 @@ def main():
     parser.add_argument('--train', action='store', dest='train', type=bool, default=False)
     parser.add_argument('--eval', action='store', dest='eval', type=bool, default=False)
     parser.add_argument('--learn_embeddings', action='store', dest='learn_embeddings', type=bool, default=False)
-    parser.add_argument('--model_path', action='store', dest='model_path', type=str, default='rnn_10window_5epoch_smallLR.h5')  
+    parser.add_argument('--model_path', action='store', dest='model_path', type=str, default='rnn_10window_5epoch_smallLR.h5')
+
+    # from http://stackoverflow.com/questions/12030187/getting-current-date-and-current-time-only-respectively
+    parser.add_argument('--save_model_path', action='store', dest='save_model_path', type=str, default=datetime.datetime.now().strftime("%Y%m%d"))
+  
 
     results = parser.parse_args()
     train = results.train
     eval = results.eval     
     model_path = results.model_path
     learn_embeddings = results.learn_embeddings
+    save_model_path = results.save_model_path
 
     if train:
         # set stateful = True? use 1-hot representation of words?
         with open(kTrainingPath, 'rb') as f:
             training_dict = pickle.load(f, encoding='latin1')
             X_train, y_train = training_dict['X_train'], training_dict['y_train']
+        X_train = X_train[:5000]
+        y_train = y_train[:5000]
         #new_X = np.zeros(X_train.shape[0], dtype=list)
         #for i in range(X_train.shape[0]):
         #    new_X[i] = X_train[i].tolist()
@@ -273,7 +300,7 @@ def main():
         print('Shape of X_train: ' + str(X_train.shape))
         print('Shape of y_train: ' + str(y_train.shape))
         model = build_and_train_model(X_train, y_train, learn_embeddings)
-        model.save('rnn_10window_5epoch_smallLR.h5')
+        model.save(save_model_path)
         # need to test on some sense examples
 
     if eval:
