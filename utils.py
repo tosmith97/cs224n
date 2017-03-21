@@ -9,7 +9,7 @@ from sklearn.manifold import TSNE
 def load_data():
     train_data_path = './data/train.p'
     val_data_path = './data/val.p'
-    reverse_dictionary_path = './data/reverse_dictionary.p'
+    reverse_dictionary_path = './data/rd2.p'
 
     train_data = pickle.load(open(train_data_path, 'rb'))
     print "Loaded train data!"
@@ -45,8 +45,19 @@ def plot_with_labels(low_dim_embs, labels, filename='tsne.png'):
 def visualize_embeddings(final_embeddings, reverse_dictionary):
     tsne = TSNE(perplexity=30, n_components=2, init='pca', n_iter=5000)
     plot_only = 500
+    r1 = final_embeddings.pop(2800)
+    r2 = final_embeddings.pop(6800)
+    r3 = final_embeddings.pop(16441)
+    r4 = final_embeddings.pop(19695)
+
+    final_embeddings.insert(r1, 0)
+    final_embeddings.insert(r2, 0)
+    final_embeddings.insert(r3, 0)
+    final_embeddings.insert(r4, 0)
+
+    final_embeddings.pop(189)
+    final_embeddings.pop(34)
+    final_embeddings.pop(84)
     low_dim_embs = tsne.fit_transform(final_embeddings[:plot_only, :])
     labels = [reverse_dictionary[i] for i in xrange(plot_only)]
     plot_with_labels(low_dim_embs, labels)
-
-w.split('/', 1)[0]

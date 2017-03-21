@@ -120,4 +120,6 @@ def run():
 final_embeddings = run()
 
 # save word vecs
-np.savetxt('data/word_vectors.txt', final_embeddings)
+# np.savetxt('data/word_vectors.txt', final_embeddings)
+
+visualize_embeddings(final_embeddings, reverse_dictionary)

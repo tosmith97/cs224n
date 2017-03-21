@@ -21,7 +21,7 @@ from keras.layers.convolutional import MaxPooling1D
 from keras.layers.embeddings import Embedding
 from keras.preprocessing import sequence
 from keras.layers.core import Dropout
-from keras.optimizers import SGD
+from keras.optimizers import SGD, RMSprop, Adagrad
 from defs import EMBED_SIZE
 
 from predict_sense import ps, embeddings, si, vocab, rd
@@ -124,13 +124,14 @@ def predict_labeled(model, history, embeddings, vocab, string_to_index, next_wor
     # softmax will return |V|-vec, get index of highest val for a sense in vec 
     # get word 
     
-    # turn history into np array of wordvecs
-    history = [string_to_index[h] if h in string_to_index else string_to_index['UNK'] for h in history.split()]
-    history = np.asarray([embeddings[h] for h in history]).T
-    print(history.shape)
-    pred_vec = model.predict(history, batch_size=1).T
+    # turn history into np array of indices
+    history = np.asarray([string_to_index[h] if h in string_to_index else string_to_index['UNK'] for h in history.split()])
+    # print(history.shape)
 
-    print(pred_vec.shape)
+
+    pred_vec = model.predict(np.reshape(history, (1, 10))).T
+
+    # print(pred_vec.shape)
     
     # get probabilities of senses for the word
     senses = [string_to_index[s] for s in ps[next_word]]
@@ -145,12 +146,14 @@ def predict_labeled(model, history, embeddings, vocab, string_to_index, next_wor
     # potential_words = [pred_vec[s,:] for s in senses]
     # print('potentials', len(potential_words))
 
-    for i, p in enumerate(potential_words):
-        potential_words[i] = np.linalg.norm(p)
+    # for i, p in enumerate(potential_words):
+    #     potential_words[i] = np.linalg.norm(p)
 
     # idx of best wordvec -> senses[idx]
-    idx = np.argmax(potential_words) 
-    # print(idx)
+    # print(potential_words)
+    idx = np.argmax(np.asarray(potential_words)) 
+    # print("best word:", idx)
+    # print()
 
     #pred_word = vocab[senses[idx]]
     # print('senee idx', senses[idx])
@@ -201,7 +204,7 @@ def eval_model(model, embeddings, vocab, eval_data, idx_of_senses):
 
             # compare
             if actual == pred:
-                score+= tot_score
+                score += num_senses
                 correct.append(("Predicted: " + pred, "Actual:" + actual))
             else:
                 incorrect.append(("Predicted: " + pred, "Actual:" + actual))
@@ -259,15 +262,15 @@ def build_and_train_model(X_train, y_train, learn_embedding=False, learned_emb_d
             weights=[emb_matrix], input_length=kMaxLength, trainable=False)
     
     model.add(embedding)
-    model.add(Dropout(rate=0.5))
-    model.add(LSTM(100)) # return_sequences
-    model.add(Dropout(rate=0.5))
+    model.add(Dropout(rate=0.1))
+    model.add(GRU(100)) # return_sequences
+    model.add(Dropout(rate=0.1))
     model.add(Dense(kTopWords, activation='softmax')) # do we need a dense layer?
     #model.add(TimeDistributed(Dense(1)))
     model.add(Activation('softmax'))
-
-    sgd = SGD(lr=0.001,  decay=1e-6, momentum=1.9, clipvalue=0.5)
-    model.compile(loss='categorical_crossentropy', optimizer=sgd)
+    rms = RMSprop(lr=0.1)
+    #sgd = SGD(lr=0.001, momentum=0.9, decay=1e-6, nesterov=True, clipvalue=0.5)
+    model.compile(loss='categorical_crossentropy', optimizer=Adagrad(clipvalue=0.5))
 #    model.compile(loss='categorical_crossentropy', optimizer='adam')
     print(model.summary())
     #model.fit(X_train, y_train, batch_size=64) #nb_epoch?
@@ -331,7 +334,7 @@ def main():
         possible_senses = ps
 
         # evaluation data is list of strings
-        eval_data = get_dir_list('one_file/', get_file_str)
+        eval_data = get_dir_list('small_eval/', get_file_str)
 
         # the indices of words with senses
         idx_of_sense = collections.defaultdict()
