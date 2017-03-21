@@ -127,9 +127,11 @@ def predict_labeled(model, history, embeddings, vocab, string_to_index, next_wor
     # turn history into np array of wordvecs
     history = [string_to_index[h] if h in string_to_index else string_to_index['UNK'] for h in history.split()]
     history = np.asarray([embeddings[h] for h in history]).T
+    print(history.shape)
     pred_vec = model.predict(history, batch_size=1).T
-    # print('pred_vec', pred_vec.shape)
 
+    print(pred_vec.shape)
+    
     # get probabilities of senses for the word
     senses = [string_to_index[s] for s in ps[next_word]]
     # print('next word:', next_word)
@@ -181,6 +183,8 @@ def eval_model(model, embeddings, vocab, eval_data, idx_of_senses):
     # after first window, feed history into LSTM
     #### WARNING: might break 
     history = first_ten
+    incorrect = []
+    correct = []
 
     for i, curr_word in enumerate(eval_data[10:-1]):
         if len(history) > 10:
@@ -195,9 +199,12 @@ def eval_model(model, embeddings, vocab, eval_data, idx_of_senses):
             window = ' '.join([word for word in history])
             pred = predict_labeled(model, window, embeddings, vocab, si, eval_data[i + 10])
 
-
             # compare
-            score += tot_score if actual == pred else 0
+            if actual == pred:
+                score+= tot_score
+                correct.append(("Predicted: " + pred, "Actual:" + actual))
+            else:
+                incorrect.append(("Predicted: " + pred, "Actual:" + actual))
 
             # add pred sense to history
             history.append(pred)
@@ -209,6 +216,18 @@ def eval_model(model, embeddings, vocab, eval_data, idx_of_senses):
     print("Total Available Score:", tot_score)
     print("Model's Score:", score)
     print("Accuracy:", acc)
+
+    # with open('rnn_incorrect.txt', 'w') as f:
+    #         f.write("Tested: " + str(tot_score))
+    #         f.write("\tAccuracy:" + str(acc))
+    #         f.write("\n")
+    #         f.write('\n'.join('%s %s' % x for x in incorrect))
+
+    # with open('rn_correct.txt', 'w') as f:
+    #         f.write("Tested: " + str(tot_score))
+    #         f.write("\tAccuracy:" + str(acc))
+    #         f.write("\n")
+    #         f.write('\n'.join('%s %s' % x for x in correct))
 
 # def predict(model, unlabeled_history):
 #     '''
@@ -245,14 +264,14 @@ def build_and_train_model(X_train, y_train, learn_embedding=False, learned_emb_d
     model.add(Dropout(rate=0.5))
     model.add(Dense(kTopWords, activation='softmax')) # do we need a dense layer?
     #model.add(TimeDistributed(Dense(1)))
-    # model.add(Activation('softmax'))
+    model.add(Activation('softmax'))
 
-    sgd = SGD(lr=0.001, clipvalue=0.5)
+    sgd = SGD(lr=0.001,  decay=1e-6, momentum=1.9, clipvalue=0.5)
     model.compile(loss='categorical_crossentropy', optimizer=sgd)
 #    model.compile(loss='categorical_crossentropy', optimizer='adam')
     print(model.summary())
     #model.fit(X_train, y_train, batch_size=64) #nb_epoch?
-    model.fit_generator(generator=batch_generator(X_train, y_train, 32, True), nb_epoch=2,
+    model.fit_generator(generator=batch_generator(X_train, y_train, 32, True), nb_epoch=3,
     steps_per_epoch=X_train.shape[0]//10)
     return model
 
@@ -284,8 +303,8 @@ def main():
         with open(kTrainingPath, 'rb') as f:
             training_dict = pickle.load(f, encoding='latin1')
             X_train, y_train = training_dict['X_train'], training_dict['y_train']
-        X_train = X_train[:5000]
-        y_train = y_train[:5000]
+        # X_train = X_train[:5000]
+        # y_train = y_train[:5000]
         #new_X = np.zeros(X_train.shape[0], dtype=list)
         #for i in range(X_train.shape[0]):
         #    new_X[i] = X_train[i].tolist()
