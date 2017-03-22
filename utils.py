@@ -1,63 +1,115 @@
-import matplotlib
-matplotlib.use('TKAgg')
-from matplotlib import pyplot as plt
-import cPickle as pickle
+# -*- coding: utf-8 -*-
+import os
+import collections
+from six.moves import cPickle
 import numpy as np
+import re
+import itertools
+# based on https://github.com/hunkim/word-rnn-tensorflow
+class TextLoader():
+    def __init__(self, data_dir, batch_size, seq_length):
+        self.data_dir = data_dir
+        self.batch_size = batch_size
+        self.seq_length = seq_length
 
-from sklearn.manifold import TSNE
+        input_file = os.path.join(data_dir, "input.txt")
+        vocab_file = os.path.join(data_dir, "vocab.pkl")
+        tensor_file = os.path.join(data_dir, "data.npy")
 
-def load_data():
-    train_data_path = './data/train.p'
-    val_data_path = './data/val.p'
-    reverse_dictionary_path = './data/rd2.p'
+        # Let's not read voca and data from file. We many change them.
+        if True or not (os.path.exists(vocab_file) and os.path.exists(tensor_file)):
+            print("reading text file")
+            self.preprocess(input_file, vocab_file, tensor_file)
+        else:
+            print("loading preprocessed files")
+            self.load_preprocessed(vocab_file, tensor_file)
+        self.create_batches()
+        self.reset_batch_pointer()
 
-    train_data = pickle.load(open(train_data_path, 'rb'))
-    print "Loaded train data!"
-    val_data = pickle.load(open(val_data_path, 'rb'))
-    print "Loaded val data!"
-    reverse_dictionary = pickle.load(open(reverse_dictionary_path, 'rb'))
-    print "Loaded reverse dictionary!"
-    return train_data, val_data, reverse_dictionary
+    def clean_str(self, string):
+        """
+        Tokenization/string cleaning for all datasets except for SST.
+        Original taken from https://github.com/yoonkim/CNN_sentence/blob/master/process_data
+        """
+        string = re.sub(r"[^가-힣A-Za-z0-9(),!?\'\`]", " ", string)
+        string = re.sub(r"\'s", " \'s", string)
+        string = re.sub(r"\'ve", " \'ve", string)
+        string = re.sub(r"n\'t", " n\'t", string)
+        string = re.sub(r"\'re", " \'re", string)
+        string = re.sub(r"\'d", " \'d", string)
+        string = re.sub(r"\'ll", " \'ll", string)
+        string = re.sub(r",", " , ", string)
+        string = re.sub(r"!", " ! ", string)
+        string = re.sub(r"\(", " \( ", string)
+        string = re.sub(r"\)", " \) ", string)
+        string = re.sub(r"\?", " \? ", string)
+        string = re.sub(r"\s{2,}", " ", string)
+        return string.strip().lower()
 
-def print_closest_words(val_index, nearest, reverse_dictionary):
-    val_word = reverse_dictionary[val_index]                 
-    log_str = "Nearest to %s:" % val_word                          
-    for k in xrange(len(nearest)):                                        
-        close_word = reverse_dictionary[nearest[k]]                
-        log_str = "%s %s," % (log_str, close_word)                 
-    print(log_str)
 
-def plot_with_labels(low_dim_embs, labels, filename='tsne.png'):
-  assert low_dim_embs.shape[0] >= len(labels), "More labels than embeddings"
-  plt.figure(figsize=(18, 18))  # in inches
-  for i, label in enumerate(labels):
-    x, y = low_dim_embs[i, :]
-    plt.scatter(x, y)
-    plt.annotate(label,
-                 xy=(x, y),
-                 xytext=(5, 2),
-                 textcoords='offset points',
-                 ha='right',
-                 va='bottom')
+    def build_vocab(self, sentences):
+        """
+        Builds a vocabulary mapping from word to index based on the sentences.
+        Returns vocabulary mapping and inverse vocabulary mapping.
+        """
+        # Build vocabulary
+        word_counts = collections.Counter(sentences)
+        # Mapping from index to word
+        vocabulary_inv = [x[0] for x in word_counts.most_common()]
+        vocabulary_inv = list(sorted(vocabulary_inv))
+        # Mapping from word to index
+        vocabulary = {x: i for i, x in enumerate(vocabulary_inv)}
+        return [vocabulary, vocabulary_inv]
 
-  plt.savefig(filename)
+    def preprocess(self, input_file, vocab_file, tensor_file):
+        with open(input_file, "r") as f:
+            data = f.read()
 
-def visualize_embeddings(final_embeddings, reverse_dictionary):
-    tsne = TSNE(perplexity=30, n_components=2, init='pca', n_iter=5000)
-    plot_only = 500
-    r1 = final_embeddings.pop(2800)
-    r2 = final_embeddings.pop(6800)
-    r3 = final_embeddings.pop(16441)
-    r4 = final_embeddings.pop(19695)
+        # Optional text cleaning or make them lower case, etc.
+        #data = self.clean_str(data)
+        x_text = data.split()
 
-    final_embeddings.insert(r1, 0)
-    final_embeddings.insert(r2, 0)
-    final_embeddings.insert(r3, 0)
-    final_embeddings.insert(r4, 0)
+        self.vocab, self.words = self.build_vocab(x_text)
+        self.vocab_size = len(self.words)
 
-    final_embeddings.pop(189)
-    final_embeddings.pop(34)
-    final_embeddings.pop(84)
-    low_dim_embs = tsne.fit_transform(final_embeddings[:plot_only, :])
-    labels = [reverse_dictionary[i] for i in xrange(plot_only)]
-    plot_with_labels(low_dim_embs, labels)
+        with open(vocab_file, 'wb') as f:
+            cPickle.dump(self.words, f)
+
+        #The same operation like this [self.vocab[word] for word in x_text]
+        # index of words as our basic data
+        self.tensor = np.array(list(map(self.vocab.get, x_text)))
+        # Save the data to data.npy
+        np.save(tensor_file, self.tensor)
+
+    def load_preprocessed(self, vocab_file, tensor_file):
+        with open(vocab_file, 'rb') as f:
+            self.words = cPickle.load(f)
+        self.vocab_size = len(self.words)
+        self.vocab = dict(zip(self.words, range(len(self.words))))
+        self.tensor = np.load(tensor_file)
+        self.num_batches = int(self.tensor.size / (self.batch_size *
+                                                   self.seq_length))
+
+    def create_batches(self):
+        self.num_batches = int(self.tensor.size / (self.batch_size *
+                                                   self.seq_length))
+        if self.num_batches==0:
+            assert False, "Not enough data. Make seq_length and batch_size small."
+
+        self.tensor = self.tensor[:self.num_batches * self.batch_size * self.seq_length]
+        xdata = self.tensor
+        ydata = np.copy(self.tensor)
+
+        ydata[:-1] = xdata[1:]
+        ydata[-1] = xdata[0]
+        self.x_batches = np.split(xdata.reshape(self.batch_size, -1), self.num_batches, 1)
+        self.y_batches = np.split(ydata.reshape(self.batch_size, -1), self.num_batches, 1)
+
+
+    def next_batch(self):
+        x, y = self.x_batches[self.pointer], self.y_batches[self.pointer]
+        self.pointer += 1
+        return x, y
+
+    def reset_batch_pointer(self):
+        self.pointer = 0
