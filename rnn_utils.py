@@ -1,3 +1,5 @@
+# Utility file to consolidate various functions 
+
 import xml.etree.ElementTree
 import os, fnmatch
 from process_xml import is_apostrophe_chunk, is_number, is_valid
@@ -73,3 +75,4 @@ def get_mls_for_window(window, possible_senses):
         mls_window.append(most_common_sense)
 
     return mls_window
+    

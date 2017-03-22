@@ -126,40 +126,18 @@ def predict_labeled(model, history, embeddings, vocab, string_to_index, next_wor
     
     # turn history into np array of indices
     history = np.asarray([string_to_index[h] if h in string_to_index else string_to_index['UNK'] for h in history.split()])
-    # print(history.shape)
-
-
     pred_vec = model.predict(np.reshape(history, (1, 10))).T
-
-    # print(pred_vec.shape)
     
     # get probabilities of senses for the word
     senses = [string_to_index[s] for s in ps[next_word]]
-    # print('next word:', next_word)
-    # print('senses:', ps[next_word])
-    # print('sense index', senses)
 
     potential_words = []
     for s in senses:
         potential_words.append(list(pred_vec[s-1,:]))
 
-    # potential_words = [pred_vec[s,:] for s in senses]
-    # print('potentials', len(potential_words))
-
-    # for i, p in enumerate(potential_words):
-    #     potential_words[i] = np.linalg.norm(p)
-
     # idx of best wordvec -> senses[idx]
-    # print(potential_words)
     idx = np.argmax(np.asarray(potential_words)) 
-    # print("best word:", idx)
-    # print()
-
-    #pred_word = vocab[senses[idx]]
-    # print('senee idx', senses[idx])
-    # print('ffs work', rd[senses[idx]])
     pred_word = rd[senses[idx]]
-    # print(pred_word)
     return pred_word
 
 
@@ -232,15 +210,6 @@ def eval_model(model, embeddings, vocab, eval_data, idx_of_senses):
     #         f.write("\n")
     #         f.write('\n'.join('%s %s' % x for x in correct))
 
-# def predict(model, unlabeled_history):
-#     '''
-#     Given an RNN model and a previous word history
-#     that doesn't have senses labled, predict a probability
-#     distribution over the next possible word as a np
-#     array. (need to iterate over cartesian product
-#     of senses)
-#     '''
-#     pass
 
 def build_and_train_model(X_train, y_train, learn_embedding=False, learned_emb_dim=32):
     '''
@@ -266,14 +235,12 @@ def build_and_train_model(X_train, y_train, learn_embedding=False, learned_emb_d
     model.add(GRU(100)) # return_sequences
     model.add(Dropout(rate=0.1))
     model.add(Dense(kTopWords, activation='softmax')) # do we need a dense layer?
-    #model.add(TimeDistributed(Dense(1)))
     model.add(Activation('softmax'))
     rms = RMSprop(lr=0.1)
     #sgd = SGD(lr=0.001, momentum=0.9, decay=1e-6, nesterov=True, clipvalue=0.5)
     model.compile(loss='categorical_crossentropy', optimizer=Adagrad(clipvalue=0.5))
 #    model.compile(loss='categorical_crossentropy', optimizer='adam')
     print(model.summary())
-    #model.fit(X_train, y_train, batch_size=64) #nb_epoch?
     model.fit_generator(generator=batch_generator(X_train, y_train, 32, True), nb_epoch=3,
     steps_per_epoch=X_train.shape[0]//10)
     return model
@@ -308,10 +275,6 @@ def main():
             X_train, y_train = training_dict['X_train'], training_dict['y_train']
         # X_train = X_train[:5000]
         # y_train = y_train[:5000]
-        #new_X = np.zeros(X_train.shape[0], dtype=list)
-        #for i in range(X_train.shape[0]):
-        #    new_X[i] = X_train[i].tolist()
-        #X_train = new_X#y_train.reshape((kNumtraining,))
         X_train[X_train >= kTopWords] = kUnkIdx
         y_one_hot = lil_matrix((y_train.shape[0], kTopWords))
         for i in range(y_train.shape[0]):

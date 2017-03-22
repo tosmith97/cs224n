@@ -1,3 +1,4 @@
+# adopted from lecture
 import matplotlib
 matplotlib.use('TKAgg')
 from matplotlib import pyplot as plt

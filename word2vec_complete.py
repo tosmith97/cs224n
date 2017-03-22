@@ -1,5 +1,5 @@
 # word2vec
-# Author: Nishith Khandwala (nishith@stanford.edu)
+# From Nishith Khandwala, example from lecture 
 # Adapted from https://www.tensorflow.org/tutorials/word2vec/
 
 from __future__ import absolute_import

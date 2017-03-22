@@ -16,8 +16,8 @@ from defs import WINDOW_SIZE
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--dirname', action='store', dest='dirname', type=str)  
-    parser.add_argument('--incorr_fn', action='store', dest='incorr_fn', type=str)
-    parser.add_argument('--correct_fn', action='store', dest='correct_fn', type=str)
+    parser.add_argument('--incorr_fn', action='store', dest='incorr_fn', type=str, default='')
+    parser.add_argument('--correct_fn', action='store', dest='correct_fn', type=str, default='')
     parser.add_argument('--weight_scores', action='store', dest='weight_scores', type=bool, default=False)
 
     # MLS = Most Likeley Sense
@@ -147,8 +147,8 @@ def see_prediction_results(eval_data, idx_of_sense, incorr_fn, correct_fn, weigh
     # compare predicted senses to actual senses
     # have acc = num_correct/tot
     with tf.device('/gpu:0'):
-        num_correct = 0
-        tot_comparisons = 0
+        num_correct = 0.0
+        tot_comparisons = 0.0
         incorrect = []
         correct = []
 
@@ -163,41 +163,22 @@ def see_prediction_results(eval_data, idx_of_sense, incorr_fn, correct_fn, weigh
                 # predict that shit
                 window = ' '.join(eval_data[i - WINDOW_SIZE: i + WINDOW_SIZE + 1])           
                 pred_senses = get_mls_for_window(window, possible_senses) if mls else list(predict_sense.predict_sense(window, string_to_index, possible_senses, embeddings))
-                senses = get_senses_in_window(window, idx_of_sense, (i - WINDOW_SIZE, i + WINDOW_SIZE + 1))               
+                senses = get_senses_in_window(window, idx_of_sense, (i - WINDOW_SIZE, i + WINDOW_SIZE + 1))
 
-                for word in xrange(len(pred_senses) - 1):
-                    # ensure that all words we look at have multiple senses
-                    if senses[word] is not None and pred_senses[word] is not None:
+                center_pred = pred_senses[WINDOW_SIZE]
+                num_senses = len(possible_senses[eval_data[i]])
 
-                        # number of senses for word 
-                        num_senses = len(possible_senses[window.split()[word]])
-
-                        # add appropriate value to total score; 1 in base case, num_senses if weighted score
-                        tot_comparisons += num_senses if (weighted_scores and num_senses > 0) else 1
-
-                        # see if predictions are correct
-                        if pred_senses[word] == senses[word]:
-                            # add 1 in base case, num_senses if weighted score
-                            num_correct += num_senses if (weighted_scores and num_senses > 0) else 1
-                            correct.append(("Predicted: " + pred_senses[word], "Actual:" + senses[word]))
-                        else:
-                            if '/' in senses[word]:
-                                incorrect.append(("Predicted: " + pred_senses[word], "Actual:" + senses[word]))
-                            else:
-                                # this means word in corpus doesn't have sense, no need to compare
-                                tot_comparisons -= num_senses if (weighted_scores and num_senses > 0) else 1
-
-            
-                # if i % 100 == 0 and tot_comparisons > 0:
-                #     print("Writing to file...")
-                #     with open(incorr_fn, 'w') as f:
-                #         f.write("Tested: " + str(tot_comparisons))
-                #         f.write("\tAccuracy:" + str(float(num_correct)/tot_comparisons))
-                #         f.write("\n")
-                #         f.write('\n'.join('%s %s' % x for x in incorrect))    
+                if senses[WINDOW_SIZE] is not None and center_pred is not None:
+                    tot_comparisons += num_senses
+                    if senses[WINDOW_SIZE] == center_pred:
+                        num_correct += num_senses
+                    else:
+                        print 'center_pred', center_pred
+                        print 'actual', senses[WINDOW_SIZE]
+                        print
 
         print("Evaluation took %.2f seconds" % (time.time() - start))
-        print("Accuracy:", float(num_correct)/tot_comparisons)
+        print("Accuracy:", num_correct/tot_comparisons)
         with open(incorr_fn, 'w') as f:
             f.write("Tested: " + str(tot_comparisons))
             f.write("\tAccuracy:" + str(float(num_correct)/tot_comparisons))
@@ -210,21 +191,5 @@ def see_prediction_results(eval_data, idx_of_sense, incorr_fn, correct_fn, weigh
             f.write("\n")
             f.write('\n'.join('%s %s' % x for x in correct))
 
-
-    # Probs:
-    #   words will be counted 4x?
-    #   What if miscalc one time but not another?
-    #   Need to pad windows somehow for beginning/end
-
-
-
-
-
 if __name__ == '__main__':
     main()
-
-
-# compare our prediction to actual sense for a given word
-# probs wanna check that word has sense to begin with
-
-
