@@ -14,6 +14,7 @@ def main():
     '''
     Invocation: python process_xml.py <dirname>
     '''
+    #if True: return # comment this out for normal behavior
     dirname = sys.argv[-1]
     full_string = get_dir_string(dirname)
     with open('training_data.p', 'wb') as f:
